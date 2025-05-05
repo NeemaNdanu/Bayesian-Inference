@@ -1,0 +1,336 @@
+---
+title: "MID-SEM BAYESIAN"
+author: "NEEMA NDANU"
+date: "2025-02-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## QUESTION 1
+Chronic obstructive pulmonary disease (COPD) is a common lung disease characterized by difficulty in breathing. A substantial proportion of COPD patients admitted to emergency medical facilities are released as outpatients. A randomized, double-blind, placebo-controlled study examined the incidence 
+of relapse in COPD patients released as outpatients as a function of whether the patients received treatment with corticosteroids.1 A total of 147 patients were enrolled in the study and were randomly assigned to treatment or placebo group on discharge from an emergency facility. Seven patients were lost from the study prior to follow-up. For the remaining 140 patients, the table below summarizes the primary outcome of the study, relapse within 30 days of discharge.
+                    Relapse    No Relapse     Total
+Treatment             19          51           70
+Placebo               30          40           70
+Total                 49          91           140
+
+Let Y1 and Y2 be the number of patients who relapse in the treatment and placebo groups, respectively. Assume Y1 and Y2 are independent Binomial(70,θ) distributions, for i=1,2. Assume Y1 and Y2 have independent Beta prior distributions with shape parameters ½ and ½ (this is the Jeffreys prior distribution). 
+
+### a) Find the joint posterior distribution for θ1 and θ2 
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(ggpubr)
+library(MASS)
+library(plotly)
+library(ggExtra)
+
+# Given data
+y1 <- 19  
+y2 <- 30  
+n_treatment <- 70  
+n_placebo <- 70    
+
+# Prior parameters 
+a_prior <- 0.5
+b_prior <- 0.5
+
+# Posterior parameters
+alpha_treatment <- a_prior + y1
+beta_treatment <- b_prior + (n_treatment - y1)
+alpha_placebo <- a_prior + y2
+beta_placebo <- b_prior + (n_placebo - y2)
+
+# State the posterior distributions
+cat("The posterior distribution for the treatment group (y1) follows:\n")
+cat(sprintf("Beta(%.1f, %.1f)\n\n", alpha_treatment, beta_treatment))
+
+cat("The posterior distribution for the placebo group (y2) follows:\n")
+cat(sprintf("Beta(%.1f, %.1f)\n\n", alpha_placebo, beta_placebo))
+
+# Generate theta values for plotting
+theta <- seq(0, 1, length.out = 1000)
+
+# Compute posterior distributions
+treatment_posterior <- dbeta(theta, alpha_treatment, beta_treatment)
+placebo_posterior <- dbeta(theta, alpha_placebo, beta_placebo)
+
+# Create a data frame for ggplot
+data <- data.frame(
+  theta = rep(theta, 2),
+  density = c(treatment_posterior, placebo_posterior),
+  group = rep(c("Treatment", "Placebo"), each = length(theta))
+)
+
+# Plot the posterior distributions with green and purple colors
+ggplot(data, aes(x = theta, y = density, color = group)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(values = c("Treatment" = "green", "Placebo" = "purple")) +  
+  labs(title = "Posterior Distributions of Relapse Probability",
+       x = "Relapse Probability (Theta)",
+       y = "Density") +
+  theme_minimal()
+
+# Summarizing posterior estimates
+mean_treatment <- alpha_treatment / (alpha_treatment + beta_treatment)
+mean_placebo <- alpha_placebo / (alpha_placebo + beta_placebo)
+
+# Print the results
+cat(sprintf("Posterior mean for treatment group: %.3f\n", mean_treatment))
+cat(sprintf("Posterior mean for placebo group: %.3f\n", mean_placebo))
+
+# Generate samples from posterior distributions
+set.seed(123)  
+samples_treatment <- rbeta(1000, alpha_treatment, beta_treatment)
+samples_placebo <- rbeta(1000, alpha_placebo, beta_placebo)
+
+# Compute joint probability density for each sample
+joint_density <- dbeta(samples_treatment, alpha_treatment, beta_treatment) * 
+                 dbeta(samples_placebo, alpha_placebo, beta_placebo)
+
+# Find the range of joint probability values
+joint_prob_range <- range(joint_density)
+
+# Print the range of joint probability values
+cat(sprintf("Range of Joint Probability Density: [%.5f, %.5f]\n", 
+            joint_prob_range[1], joint_prob_range[2]))
+
+
+# Create a data frame
+df <- data.frame(Treatment = samples_treatment, Placebo = samples_placebo)
+
+# Create a base scatter plot with density contours
+p <- ggplot(df, aes(x = Treatment, y = Placebo)) +
+  geom_point(alpha = 0.3, color = "blue") +  # Add scatter plot layer
+  geom_density_2d_filled(contour_var = "density", alpha = 0.5) +
+  theme_minimal() +
+  labs(title = "Joint Posterior Distribution of Relapse Probabilities",
+       x = "Theta (Treatment Group)", y = "Theta (Placebo Group)")
+
+# Add marginal density plots 
+p_with_margins <- ggMarginal(p, type = "density", fill = "blue", alpha = 0.4)
+
+# Show plot
+print(p_with_margins)
+```
+The posterior distribution for the treatment group's relapse probability follows Beta(19.5, 51.5), meaning our updated belief is centered around a lower probability of relapse.  
+
+For the placebo group, the posterior follows Beta(30.5, 40.5), indicating a higher probability of relapse.  
+
+The posterior mean relapse probabilities are:  
+- Treatment group: 0.275 (lower relapse probability)  
+- Placebo group: 0.430 (higher relapse probability)  
+
+The visualization shows the treatment group’s curve (green) shifted left (lower relapse risk), while the placebo group’s curve (purple) is shifted right (higher relapse risk). The distributions reflect uncertainty, with the placebo group having more weight at higher probabilities.
+
+The last plot shows the joint posterior distribution of relapse probabilities (Θ) for the treatment and placebo groups. It contains the following:
+
+1. Scatter Plot (Blue Points) 
+   - Each point represents a sample from the posterior distributions of the treatment and placebo groups.  
+  
+2. 2D Density Contours (Color Gradient)  
+   - The contour colors indicate the density of points in different regions.
+   - The yellow and green areas represent high-density regions, meaning more posterior samples fall in these areas.
+   - The outer purple areas indicate lower density (fewer samples).
+
+3. Marginal Density Plots (Top and Right)  
+   - The top density plot shows Θ for the treatment group, while the right one shows Θ for the placebo group.  
+   
+In conclusion:
+- The joint distribution is centered around these means, showing that the placebo group generally has higher relapse probabilities.  
+- The contour levels (legend on the right) indicate density values, with higher levels in the middle where the most probable values are concentrated.  
+
+The visualization helps compare the uncertainty and variability in the relapse probabilities between the two groups, based on Bayesian inference.
+
+### b) State the distribution type and its hyperparameters.
+
+Since the Beta distribution is a conjugate prior for the Binomial likelihood, the posterior remains in the Beta family with updated parameters.
+
+The posterior distributions for the relapse probabilities in the treatment and placebo groups follow Beta distributions.
+
+Treatment Group:
+The posterior distribution is Beta(19.5, 51.5).
+Hyper parameters:
+  - α = 19.5 i.e., successes: relapse cases + prior
+  - β = 51.5 i.e., failures: non-relapse cases + prior
+
+Placebo Group:
+The posterior distribution is Beta(30.5, 40.5).
+Hyper parameters:
+  - α = 30.5 i.e., successes: relapse cases + prior
+  - β = 40.5 i.e., failures: non-relapse cases + prior
+  
+α and β are the hyper parameters.
+
+## QUESTION 2
+The table below is taken from the Hoff text and shows the joint distribution of occupations taken from 
+a 1983 study of social mobility.
+
+```{r}
+# Given joint probability table
+joint_prob <- matrix(c(
+  0.018, 0.035, 0.031, 0.008, 0.018,
+  0.002, 0.112, 0.064, 0.032, 0.069,
+  0.001, 0.066, 0.094, 0.032, 0.084,
+  0.001, 0.018, 0.019, 0.010, 0.051,
+  0.001, 0.029, 0.032, 0.043, 0.130
+), nrow = 5, byrow = TRUE)
+
+# Row and column names
+rownames(joint_prob) <- c("Father: Farm", "Father: Operatives", "Father: Craftsmen", "Father: Sales", "Father: Professional")
+colnames(joint_prob) <- c("Son: Farm", "Son: Operatives", "Son: Craftsmen", "Son: Sales", "Son: Professional")
+
+# Print the joint probability table
+cat("\nJoint Probability Table:\n")
+print(joint_prob)
+```
+
+### a. Find the marginal distribution of fathers’ occupations.
+```{r}
+marginal_father <- rowSums(joint_prob)
+cat("\nMarginal Distribution of Father's Occupation:\n")
+print(marginal_father)
+```
+The marginal probability of a father’s occupation represents how frequently each occupation appears in the dataset, regardless of the son's occupation. The most common occupations are Operatives (27.9%) and Craftsmen (27.7%), indicating a high presence in labor-intensive jobs. The least common is Sales (9.9%), while Farming (11.0%) is also relatively uncommon. Professional occupations (23.5%) make up a significant portion.
+
+### b. Find the marginal distribution of sons’ occupations.
+```{r}
+marginal_son <- colSums(joint_prob)
+cat("\nMarginal Distribution of Son's Occupation:\n")
+print(marginal_son)
+```
+The marginal probability of a son’s occupation shows how frequently each occupation appears in the dataset, regardless of the father’s occupation. The most common occupation is Professional (35.2%), indicating a large portion of sons work in professional roles. Operatives (26.0%) and Craftsmen (24.0%) are also common, reflecting a strong presence in labor-intensive jobs. Sales (12.5%) is less frequent, while Farming (2.3%) is the least common, suggesting few sons pursue farming.
+
+### c. Find the conditional distribution of the son’s occupation given that the father is a farmer. 
+```{r}
+cond_son_given_father_farm <- joint_prob["Father: Farm", ] / marginal_father["Father: Farm"]
+cat("\nConditional Distribution of Son's Occupation Given Father is a Farmer:\n")
+print(cond_son_given_father_farm)
+```
+The conditional probability of a son’s occupation, given that the father is a farmer, shows how sons of farmers distribute across different jobs. The most common occupation is Operatives (31.8%), followed by Craftsmen (28.2%), indicating many sons of farmers enter labor-intensive fields. Farming (16.4%) and Professional (16.4%) are equally likely, showing that some sons remain in farming while others move into professional roles. Sales (7.3%) is the least common, suggesting fewer sons of farmers work in sales.
+
+
+### d. Find the conditional distribution of the father’s occupation given that the son is a farmer.
+```{r}
+cond_father_given_son_farm <- joint_prob[, "Son: Farm"] / marginal_son["Son: Farm"]
+cat("\nConditional Distribution of Father's Occupation Given Son is a Farmer:\n")
+print(cond_father_given_son_farm)
+```
+The conditional probability of a father’s occupation, given that the son is a farmer, shows the likelihood of different father occupations when the son works in farming. The majority of these sons have fathers who are Farmers (78.3%), suggesting strong occupational inheritance in farming. Operatives (8.7%) make up a small portion, followed by Craftsmen (4.3%), Sales (4.3%), and Professionals (4.3%), indicating that farming sons rarely come from non-farming backgrounds.
+
+### e. Comment on these results. What do they say about changes in farming in the population from which these data are drawn?
+
+The results indicate that most sons of farmers do not remain farmers, as only 16.4% of sons of farmers stay in farming.
+Sons of farmers are more likely to become operatives or craftsmen.
+Farming is in decline across generations since only 2.3% of sons enter farming, despite 11% of fathers being farmers.
+There is a strong tendency for professionals’ sons to remain professionals, indicating high occupational persistence in professional jobs.
+
+## QUESTION 3
+## 1. Tarone (1982) reports data from 71 studies on tumor incidence in rats.
+
+### a. In one of the studies, 2 out of 13 rats had tumors. Assume there are 20 possible tumor probabilities: 0.025, 0.075, …, 0.975. Assume that the tumor probability is uniformly distributed. Find the posterior distribution for the tumor probability given the data for this study.
+
+```{r}
+# Define the possible theta values
+theta_values <- seq(0.025, 0.975, by = 0.05)
+
+# Define the binomial likelihood function
+likelihood <- function(theta, x, n) {
+  dbinom(x, n, theta)
+}
+
+# Compute the likelihood for each theta
+rats_develp_tumor_1 <- 2
+no_of_rats_1 <- 13
+likelihood_values1 <- sapply(theta_values, likelihood, x = rats_develp_tumor_1, n = no_of_rats_1)
+
+# Assume a uniform prior
+prior <- rep(1 / length(theta_values), length(theta_values))
+
+# Compute posterior probabilities
+posterior1 <- likelihood_values1 * prior / sum(likelihood_values1 * prior)
+
+# Plot posterior distribution
+barplot(posterior1, names.arg = theta_values, col = "blue",
+        main = "Posterior Distribution for Tumor Probability",
+        xlab = expression(theta), ylab = "Posterior Probability", border = "black")
+
+```
+The graph represents the posterior distribution of the tumor probability θ, based on a study where 2 out of 13 rats developed tumors. The assumption of a uniform prior for θ means that all values of θ are initially considered equally likely.
+
+The likelihood function follows a binomial distribution, accounting for the 2 tumor cases out of 13 rats for each possible value of θ.
+
+The shape of the histogram is skewed to the right, meaning the higher posterior probabilities are concentrated around lower values of θ, approximately between 0.15 and 0.32. This suggests that the most likely tumor incidence rate falls within this range.
+
+### b. Repeat Part a for a second study in which 1 in 18 rats had a tumor
+
+```{r}
+# Compute the likelihood for each theta
+rats_develp_tumor_2 <- 1
+no_of_rats_2 <-18
+likelihood_values2 <- sapply(theta_values, likelihood, x = rats_develp_tumor_2, n = no_of_rats_2)
+
+# Assume a uniform prior
+prior <- rep(1 / length(theta_values), length(theta_values))
+
+# Compute posterior probabilities
+posterior2 <- likelihood_values2 * prior / sum(likelihood_values2 * prior)
+
+# Plot posterior distribution
+barplot(posterior2, names.arg = theta_values, col = "blue",
+        main = "Posterior Distribution for Tumor Probability",
+        xlab = expression(theta), ylab = "Posterior Probability", border = "black")
+```
+The distribution graph suggests that the tumor incidence rate in rats is likely lower than previously estimated in 1(a). The graph still assumes a uniform prior, but now the values of θ  are more concentrated at lower levels, because the proportion of tumor cases is smaller. 
+
+The distribution remains right-skewed, meaning most of the probability is focused on smaller θ  values. Since the posterior assigns higher probability to lower θ  values, the likelihood of larger θ  values has decreased.  
+
+In simple terms, the new data suggests that the true tumor probability is lower than initially thought.
+
+### Parts a and b assumed that each study had a different tumor probability, and that these tumor probabilities were uniformly distributed a priori. Now, assume the tumor probabilities are the same for the two studies, and that this probability has a uniform prior distribution. Find the posterior distribution for the common tumor probability given the combined results from the two studies
+
+```{r}
+# Compute the combined likelihood
+total_rats <- no_of_rats_1 + no_of_rats_2
+total_tumors <- rats_develp_tumor_1 + rats_develp_tumor_2
+likelihood_values_combined <- sapply(theta_values, likelihood, x = total_tumors, n = total_rats)
+
+# Compute posterior probabilities
+posterior_combined <- (likelihood_values_combined * prior)/sum(likelihood_values_combined * prior)
+
+# Plot the posterior distribution
+barplot(posterior_combined, names.arg = theta_values, col = "purple",
+        main = "Posterior Distribution (Combined Studies)",
+        xlab = expression(theta), ylab = "Posterior Probability", border = "black")
+```
+Previously, in parts 1(a) and 1(b), we treated each study separately, assuming they had different tumor probabilities. This meant considering them as independent experiments with their own priors.
+
+Now, we assume both studies share a common tumor probability θ, meaning they were conducted under the same experimental conditions affecting tumor development.
+
+To calculate the posterior distribution for the combined study, we sum the total number of trials (rats) and the number of successes (rats that developed tumors). This gives us the overall tumor count within the same experimental setting, aligning with our assumption.
+
+From the graph, we observe that the posterior distribution remains right-skewed, with lower θ values having the highest probability. However, it is now more concentrated compared to the separate studies because the combined data reduces uncertainty. 
+
+The highest posterior probability appears to be in the range of 0.1 to 0.175. While there is still a small probability of higher θ values, the combined data strongly supports a low tumor probability.
+
+### Compare the three distributions for Parts a, b, and c. Comment on your results
+```{r}
+# Plot all three posterior distributions
+plot(theta_values, posterior1, type = "l", col = "blue", lwd = 2, ylim = c(0, max(posterior1, posterior2, posterior_combined)), 
+     main = "Comparison of Posterior Distributions", xlab = expression(theta), ylab = "Posterior Probability")
+lines(theta_values, posterior2, col = "red", lwd = 2, lty = 2)
+lines(theta_values, posterior_combined, col = "purple", lwd = 2, lty = 3)
+legend("topright", legend = c("Study 1", "Study 2", "Combined"), col = c("blue", "red", "purple"), lwd = 2, lty = c(1, 2, 3))
+```
+The plot above compares probability distributions under different conditions.
+
+Study 1 (Blue Line): The posterior distribution is broader with a peak around 0.15. This suggests a relatively low estimated tumor probability, but with higher uncertainty due to a smaller sample size.
+
+Study 2 (Red Line): The distribution is more concentrated around lower values, peaking at 0.1. Fewer tumor cases in this study lead to a lower estimated probability. The narrower posterior indicates reduced uncertainty compared to Study 1.
+
+Combined Study (Purple Line): The posterior distribution is most concentrated, peaking around 0.12, between the two separate studies. Combining the studies increases the sample size, reducing variance and providing a more precise estimate of θ.
+
+In conclusion, increasing the sample size reduces uncertainty, gives a more reliable estimate of θ, and balances the contributions from both studies in the posterior mean.

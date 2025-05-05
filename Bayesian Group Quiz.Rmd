@@ -1,0 +1,719 @@
+---
+title: "Group Quiz Bayesian"
+author: "NEEMA NDANU"
+date: "2025-03-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## QUESTION 1
+
+Concentrations of the pollutants aldrin and hexachlorobenzene (HCB) in
+nanograms per liter were measured in ten surface water samples, ten
+mid-depth water samples, and tePn bottom samples from the Wolf River in
+Tennessee. The samples were taken downstream from an abandoned dump site
+previously used by the pesticide industry. The full data set can be
+found at <http://www.biostat.umn.edu/~lynn/iid/wolf.river.dat>. For this
+problem, we consider only HCB measurements taken at the bottom and the
+surface. The question of interest is whether the distribution of HCB
+concentration depends on the depth at which the measurement was taken.
+The data for this problem are given below.
+
+Surface Bottom 3.74 5.44 4.61 6.88 4.00 5.37 4.67 5.44 4.87 5.03 5.12
+6.48 4.52 3.89 5.29 5.85 5.74 6.85 5.48 7.16
+
+Assume the observations are independent normal random variables with
+unknown depth-specific means Qs and Qb and precisions Rs and Rb. Assume
+independent improper reference priors for the surface and bottom
+parameters:
+
+```         
+ g(𝜃s,𝜃b ,𝜌sand 𝜌b )    =   𝑔(𝜃s,𝜌b)    𝑔(𝜃 s,𝜌b ) ∝    𝜌s 𝜌b   
+ 
+```
+
+This prior can be treated as the product of two normal-gamma priors with
+µs = µb = 0, ks = kb =0, as = ab = -1/2, and bs = bb = ∞. (These are not
+valid normal-gamma distributions, but you can use the usual Bayesian
+conjugate updating rule to find the posterior distribution.)
+
+```{r}
+# Data for HCB concentrations
+surface <- c(3.74, 4.61, 4.00, 4.67, 4.87, 5.12, 4.52, 5.29, 5.74, 5.48)
+bottom <- c(5.44, 6.88, 5.37, 5.44, 5.03, 6.48, 3.89, 5.85, 6.85, 7.16)
+
+# Compute sample statistics
+n_surface <- length(surface)
+n_bottom <- length(bottom)
+
+# Compute mean and variance
+mean_surface <- mean(surface)
+var_surface <- var(surface)
+sd_surface <- sqrt(var_surface)  # Standard deviation
+precision_surface <- 1 / var_surface  # Precision is the inverse of variance
+
+mean_bottom <- mean(bottom)
+var_bottom <- var(bottom)
+sd_bottom <- sqrt(var_bottom)  # Standard deviation
+precision_bottom <- 1 / var_bottom  # Precision is the inverse of variance
+
+# Print results
+cat("Surface Mean:", mean_surface, "\n")
+cat("Surface Variance:", var_surface, "\n")
+cat("Surface Standard Deviation:", sd_surface, "\n")
+cat("Surface Precision:", precision_surface, "\n\n")
+
+cat("Bottom Mean:", mean_bottom, "\n")
+cat("Bottom Variance:", var_bottom, "\n")
+cat("Bottom Standard Deviation:", sd_bottom, "\n")
+cat("Bottom Precision:", precision_bottom, "\n")
+```
+
+The average HCB concentration is higher at the bottom than at the
+surface, but the bottom also shows greater variability, as indicated by
+its higher variance and standard deviation. This means HCB
+concentrations at the bottom are more spread out, while surface
+concentrations are more consistent. The higher precision at the surface
+further confirms this consistency. These differences may be influenced
+by environmental factors such as sedimentation or diffusion effects.
+
+### Find the joint posterior distribution for the parameters (𝜃,𝜃 ,𝜌,𝜌 ).
+
+```{r}
+# Prior hyperparameters (Improper prior)
+mu_0_surface <- 0  # Prior mean for surface
+mu_0_bottom <- 0   # Prior mean for bottom
+k_0 <- 0           # Prior precision multipliers
+
+alpha_0 <- -0.5    # Shape parameter for the Gamma prior (improper)
+beta_0 <- Inf      # Scale parameter (infinite for improper prior)
+
+# Posterior parameters for surface
+k_surface <- k_0 + n_surface
+post_mu_surface <- (k_0 * mu_0_surface + n_surface * mean_surface) / k_surface
+post_alpha_surface <- alpha_0 + n_surface / 2
+post_beta_surface <- sum((surface - mean_surface)^2) / 2
+
+# Posterior parameters for bottom
+k_bottom <- k_0 + n_bottom
+post_mu_bottom <- (k_0 * mu_0_bottom + n_bottom * mean_bottom) / k_bottom
+post_alpha_bottom <- alpha_0 + n_bottom / 2
+post_beta_bottom <- sum((bottom - mean_bottom)^2) / 2
+
+# Print results
+cat("Surface:\n")
+cat("Posterior precision multiplier:", k_surface, "\n")
+cat("Posterior Mean:", post_mu_surface, "\n")
+cat("Posterior alpha:", post_alpha_surface, "\n")
+cat("Posterior beta:", post_beta_surface, "\n\n")
+
+cat("Bottom:\n")
+cat("Posterior precision multiplier:", k_bottom, "\n")
+cat("Posterior Mean:", post_mu_bottom, "\n")
+cat("Posterior alpha:", post_alpha_bottom, "\n")
+cat("Posterior beta:", post_beta_bottom, "\n")
+```
+
+The results indicate that the posterior mean at the bottom is higher
+than at the surface, and the larger posterior beta for the bottom
+suggests greater uncertainty or variability in concentration levels at
+that depth.
+
+### State the type of distribution and the posterior hyperparameters.
+
+The posterior distribution follows a Normal-Gamma distribution, where
+the mean ($\theta$) given the precision ($\rho$) follows a Normal
+distribution, and the precision ($\rho$) follows a Gamma distribution.
+
+The posterior hyperparameters include the
+
+1.  Posterior mean ($\mu_n$), which is a weighted average of the prior
+    mean and sample mean,
+2.  Posterior precision multiplier ($k_n$), which accounts for sample
+    size,
+3.  Posterior shape parameter ($\alpha_n$), which increases with the
+    number of observations, and
+4.  Posterior scale parameter ($\beta_n$), which reflects the sum of
+    squared deviations from the mean.
+
+These parameters determine the updated beliefs about the HCB
+concentration at different depths.
+
+### Find 90% posterior credible intervals for 𝜃s,𝜃b ,𝜌sand 𝜌b .
+
+```{r}
+# Load necessary package
+library(extraDistr)
+
+# Compute CI for Precision:
+# Compute 90% credible intervals for precision ρ (inverse variance)
+ci_rho_surface <- qgamma(c(0.05, 0.95), shape = post_alpha_surface, scale = 1 / post_beta_surface)
+ci_rho_bottom <- qgamma(c(0.05, 0.95), shape = post_alpha_bottom, scale = 1 / post_beta_bottom)
+
+# Compute CI for Mean:
+# Compute standard deviation for the posterior mean
+s_surface <- 1 / sqrt(k_surface * post_alpha_surface * post_beta_surface)
+s_bottom <- 1 / sqrt(k_bottom * post_alpha_bottom * post_beta_bottom)
+
+# Degrees of freedom for t-distribution
+df_surface <- 2 * post_alpha_surface
+df_bottom <- 2 * post_alpha_bottom
+
+# t-quantiles for 90% credible interval (5% in each tail)
+t_quantile_s <- qt(0.95, df_surface)  
+t_quantile_b <- qt(0.95, df_bottom)  
+
+# Compute 90% credible intervals for mean θ
+ci_mean_surface <- c(post_mu_surface - t_quantile_s * s_surface, post_mu_surface + t_quantile_s * s_surface)
+ci_mean_bottom <- c(post_mu_bottom - t_quantile_b * s_bottom, post_mu_bottom + t_quantile_b * s_bottom)
+
+# Print results
+cat("90% Posterior Credible Intervals:\n")
+cat("Mean of Surface:", ci_mean_surface, "\n")
+cat("Mean of Bottom:", ci_mean_bottom, "\n")
+cat("Precision of Surface:", ci_rho_surface, "\n")
+cat("Precision of Bottom:", ci_rho_bottom, "\n")
+```
+
+The 90% posterior credible intervals provide a range of values where the
+true parameters are likely to fall. The credible interval for the mean
+($\theta_s, \theta_b$) is derived using a t-distribution, accounting for
+uncertainty in the mean estimate, while the credible interval for
+precision ($\rho_s, \rho_b$) follows a Gamma distribution, reflecting
+uncertainty in variance.
+
+The results indicate that the mean HCB concentration at the bottom is
+higher than at the surface, and the wider credible interval for bottom
+precision suggests greater variability in concentration estimates at
+that depth.
+
+### Comment on your results.
+
+The results indicate that
+
+1.  HCB concentrations are higher at the bottom than at the surface, but
+    they also exhibit greater variability, as reflected in the wider
+    credible intervals for precision.
+
+2.  Surface concentrations are more consistent, supported by the
+    narrower credible intervals and higher precision.
+
+3.  Posterior Normal-Gamma distribution effectively captures this
+    uncertainty, with the mean following Normal distribution and
+    precision following a Gamma distribution.
+
+4.  Larger posterior beta for the bottom suggests higher uncertainty in
+    concentration estimates at that depth.These differences may be
+    driven by environmental factors such as sedimentation and diffusion,
+    which influence HCB distribution in deeper waters.
+
+## QUESTION 2
+
+Use direct Monte Carlo to sample 10,000 observations from the joint
+posterior distribution of (𝜃s,𝜃b ,𝜌sand 𝜌b ).
+
+### Use your Monte Carlo samples to estimate 90% posterior credible intervals for𝜃s,𝜃b ,𝜌sand 𝜌b .
+
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# Number of Monte Carlo samples
+samples_size <- 10000
+
+# Monte Carlo Sampling from Posterior
+rho_surface <- rgamma(samples_size, shape = post_alpha_surface, scale = 1 / post_beta_surface)
+mean_surface_samples <- rnorm(samples_size, mean = post_mu_surface, sd = 1 / sqrt(k_surface * rho_surface))
+
+rho_bottom <- rgamma(samples_size, shape = post_alpha_bottom, scale = 1 / post_beta_bottom)
+mean_bottom_samples <- rnorm(samples_size, mean = post_mu_bottom, sd = 1 / sqrt(k_bottom * rho_bottom))
+
+# Compute 90% posterior credible intervals
+ci_theta_s <- quantile(mean_surface_samples, probs = c(0.05, 0.95))
+ci_theta_b <- quantile(mean_bottom_samples, probs = c(0.05, 0.95))
+ci_rho_s <- quantile(rho_surface, probs = c(0.05, 0.95))
+ci_rho_b <- quantile(rho_bottom, probs = c(0.05, 0.95))
+
+# Print results
+cat("90% Monte Carlo Posterior Credible Intervals:\n")
+cat("Mean of Surface (Theta_s):", ci_theta_s, "\n")
+cat("Mean of Bottom (Theta_b):", ci_theta_b, "\n")
+cat("Precision of Surface (Rho_s):", ci_rho_s, "\n")
+cat("Precision of Bottom (Rho_b):", ci_rho_b, "\n")
+```
+
+The Monte Carlo method provides a numerical approximation of the
+posterior distributions, which is useful when analytical solutions are
+complex.
+
+The interval for θ s (surface mean) [4.431, 5.166] and for θ b (bottom
+mean) [5.264, 6.436] show that HCB concentration at the bottom is
+generally higher than at the surface.
+
+The precision intervals indicate that surface concentrations are more
+consistent (less variable) than those at the bottom.
+
+The Monte Carlo estimates align well with the previous analytical
+results, reinforcing that the posterior means and precisions are well
+captured by the Normal-Gamma structure.
+
+### Compare with the result of Problem 1.
+
+```{r}
+# Theoretical marginal density for theta
+mean_vals <- seq(min(mean_surface_samples, mean_bottom_samples) - 0.5, max(mean_surface_samples, mean_bottom_samples) + 0.5, length.out = 100)
+
+# Compute the theoretical density
+# For surface:
+std_vals_s <- (mean_vals - post_mu_surface) / s_surface
+thetaMargDens_s <- dt(std_vals_s, df = 2 * post_alpha_surface) / s_surface
+
+# For bottom:
+std_vals_b <- (mean_vals - post_mu_bottom) / s_bottom
+thetaMargDens_b <- dt(std_vals_b, df = 2 * post_alpha_bottom) / s_bottom
+
+# Determine an appropriate y-axis range
+y_max_s <- max(density(mean_surface_samples)$y, thetaMargDens_s)
+y_max_b <- max(density(mean_bottom_samples)$y, thetaMargDens_b)
+
+# Plot comparison for surface
+plot(density(mean_surface_samples), col = "blue", lty = 2, 
+     main = "Surface: Theoretical vs Monte Carlo Posterior Densities", 
+     xlab = expression(theta), ylab = "Density", 
+     xlim = range(mean_vals), ylim = c(0, y_max_s * 1.1))  
+lines(mean_vals, thetaMargDens_s, col = "red", lwd = 2)
+legend("topright", legend = c("Monte Carlo Surface", "Theoretical Surface"), 
+       col = c("blue", "red"), lty = c(2, 1), lwd = c(1, 2))
+
+# Plot comparison for bottom
+plot(density(mean_bottom_samples), col = "green", lty = 2, 
+     main = "Bottom: Theoretical vs Monte Carlo Posterior Densities", 
+     xlab = expression(theta), ylab = "Density", 
+     xlim = range(mean_vals), ylim = c(0, y_max_b * 1.1)) 
+lines(mean_vals, thetaMargDens_b, col = "purple", lwd = 2)
+legend("topright", legend = c("Monte Carlo Bottom", "Theoretical Bottom"), 
+       col = c("green", "purple"), lty = c(2, 1), lwd = c(1, 2))
+
+```
+
+For the first plot(Surface) we got the following observation: 1. The
+Monte Carlo estimate roughly follows the theoretical distribution but is
+slightly more spread out.
+
+2.  The theoretical posterior has a narrower peak, meaning that it
+    suggests lower uncertainty about θ at the surface compared to the
+    Monte Carlo estimate.
+
+For the second plot(Bottom) we got the following observation: 1. The
+Monte Carlo estimate is significantly wider and flatter than the
+theoretical posterior.
+
+2.  The theoretical posterior density has a very sharp peak, indicating
+    a strong concentration of probability around a specific value of θ.
+
+The discrepancy is larger compared to the surface plot, suggesting that
+at the bottom level, the Monte Carlo sampling introduces more
+variability or is not as precise.
+
+In summary : 1. The theoretical posterior is narrower in both cases,
+indicating a more confident estimation of θ.
+
+2.  The Monte Carlo estimate is closer to the theoretical at the surface
+    but diverges more at the bottom, suggesting that the estimation of θ
+    is less precise at greater depths.
+
+3.  The bottom level shows greater variation in Monte Carlo sampling,
+    possibly due to fewer observations or higher uncertainty in the
+    data.
+
+### Comparison of kernel density estimate based on the smaple size direct MC draws, theoretical t density, and normal density using sample standard deviation
+
+```{r}
+# Define a range of values for theta (mean)
+mean_vals <- seq(min(mean_surface_samples) - 0.5, max(mean_surface_samples) + 0.5, length.out = 100)
+mean_vals <- seq(min(mean_bottom_samples) - 0.5, max(mean_bottom_samples) + 0.5, length.out = 100)
+
+# Kernel density estimate (KDE) from MC samples
+kde_surface <- density(mean_surface_samples)
+kde_bottom <- density(mean_bottom_samples)
+
+
+# Theoretical t-density
+std_vals_s <- (mean_vals - post_mu_surface) / s_surface
+thetaMargDens_s <- dt(std_vals_s, df = 2 * post_alpha_surface) / s_surface
+
+std_vals_b <- (mean_vals - post_mu_bottom) / s_bottom
+thetaMargDens_b <- dt(std_vals_b, df = 2 * post_alpha_bottom) / s_bottom
+
+# Normal density using sample mean and standard deviation
+normal_dens_s <- dnorm(mean_vals, mean = mean_surface, sd = sd_surface)
+normal_dens_b <- dnorm(mean_vals, mean = mean_bottom, sd = sd_bottom)
+
+# Plot comparison for surface
+plot(kde_surface, col = "blue", lty = 2, main = "Surface: KDE vs Theoretical t vs Normal Density", 
+     xlab = expression(theta), ylab = "Density", xlim = range(mean_vals), ylim = c(0, max(c(kde_surface$y, thetaMargDens_s, normal_dens_s))))
+lines(mean_vals, thetaMargDens_s, col = "red", lwd = 2)
+lines(mean_vals, normal_dens_s, col = "green", lwd = 2)
+legend("topright", legend = c("KDE (MC)", "Theoretical t", "Normal Density"), 
+       col = c("blue", "red", "green"), lty = c(2, 1, 1), lwd = c(1, 2, 2))
+
+# Plot comparison for bottom
+plot(kde_bottom, col = "blue", lty = 2, main = "Bottom: KDE vs Theoretical t vs Normal Density", 
+     xlab = expression(theta), ylab = "Density", xlim = range(mean_vals), ylim = c(0, max(c(kde_bottom$y, thetaMargDens_b, normal_dens_b))))
+lines(mean_vals, thetaMargDens_b, col = "red", lwd = 2)
+lines(mean_vals, normal_dens_b, col = "green", lwd = 2)
+legend("topright", legend = c("KDE (MC)", "Theoretical t", "Normal Density"), 
+       col = c("blue", "red", "green"), lty = c(2, 1, 1), lwd = c(1, 2, 2))
+```
+
+The following are the key observation made in terms of: 1. Shape
+Differences Across Methods:
+
+-   The theoretical t-distribution (red line) is sharply peaked and has
+    heavier tails.
+
+-   The KDE (blue line) provides an empirical estimate based on MC
+    samples and is slightly smoother.
+
+-   The normal density (green line) is more spread out and does not
+    capture heavy tails.
+
+    2.  Comparison of the Two Plots:
+
+-   In the surface plot, the density curves are more spread out,
+    indicating more variation in the sample.
+
+-   In the bottom plot, the theoretical t-density is more peaked,
+    suggesting that the bottom samples are more concentrated around
+    their mean.
+
+    3.  Monte Carlo Approximation:
+
+-   The KDE (blue) closely follows the theoretical t-distribution but is
+    smoother due to the sample-based nature of KDE.
+
+-   The normal density (green) deviates more, especially in the peak and
+    tails, confirming that normality may not be the best assumption.
+
+In conclusion: - The theoretical t-distribution captures the shape of
+the parameter uncertainty better than the normal approximation.
+
+-   KDE provides an empirical estimate that aligns closely with the
+    theoretical t-density.
+
+-   The surface dataset exhibits slightly more spread, while the bottom
+    dataset is more concentrated around its mean.
+
+## QUESTION 3
+
+### Use your direct Monte Carlo sample to estimate the probability that the mean bottom concentration 𝜃b is higher than the mean surface concentration 𝜃s and estimate the probability that the standard deviation 𝜎b of the bottom concentrations is higher than the standard deviation 𝜎 sof the surface concentrations.
+
+```{r}
+# Probability that theta_b > theta_s
+prob_theta_b_gt_theta_s <- mean(mean_bottom_samples > mean_surface_samples)
+cat("Probability that mean of bottom > mean of surface:", prob_theta_b_gt_theta_s, "\n")
+
+# Probability that sigma_b > sigma_s
+sigma_surface_samples <- 1 / sqrt(rho_surface)
+sigma_bottom_samples <- 1 / sqrt(rho_bottom)
+
+prob_sigma_b_gt_sigma_s <- mean(sigma_bottom_samples > sigma_surface_samples)
+cat("Probability that standard deviation of bottom > standard deviation of surface:", prob_sigma_b_gt_sigma_s, "\n")
+```
+
+The probability that mean of bottom \> mean of surface is very high
+(99.07%), indicating that in almost all Monte Carlo (MC) simulations,
+the bottom mean concentration is greater than the surface mean
+concentration.
+
+This suggests that the bottom environment tends to have consistently
+higher concentration levels than the surface.
+
+The probability that standard deviation of bottom \> standard deviation
+of surface: is 91.38%, meaning that in most cases, the bottom
+concentrations exhibit greater variability than surface concentrations.
+
+This suggests that conditions at the bottom lead to more fluctuations in
+concentration levels compared to the surface.
+
+### Quetsion 4
+
+### Comment on your analysis. What are your conclusions about the distributions of surface and bottom concentrations? Is the assumption of normality reasonable? Are the means different for surface and bottom? The standard deviations?
+
+```{r}
+# Q-Q Plots
+qqnorm(surface, main = "Q-Q Plot for Surface Concentrations")
+qqline(surface, col = "red")
+
+qqnorm(bottom, main = "Q-Q Plot for Bottom Concentrations")
+qqline(bottom, col = "blue")
+```
+
+The Q-Q (Quantile-Quantile) plots visually assess the normality of the
+Bottom Concentrations and Surface Concentrations data. If the Q-Q plot
+shows points deviating significantly from the reference line, it
+suggests non-normality.
+
+Based on the Q-Q Plots of the: 1. Surface Concentrations: - The points
+are fairly close to the straight red line, though minor deviations
+exist.The data appears to follow a normal distribution reasonably well.
+
+```         
+2. Bottom Concentrations:
+```
+
+-   The points mostly align with the straight blue line but show some
+    deviations at the tails (lower left and upper right).This suggests
+    that while the data is approximately normal, there may be slight
+    skewness or outliers.
+
+Hence both distributions show approximate normality, but with minor
+deviations at the tails.
+
+Based on the Comparison of Means and Standard Deviations: 1. The means
+for surface and bottom are significantly different, implying that depth
+influences the concentration levels.
+
+```         
+2. The standard deviations are also different, further supporting that bottom concentrations are more dispersed
+than surface concentrations.
+```
+
+Based on the analysis of the distributions of surface and bottom
+concentrations, we draw the following conclusions: 1. In term of Mean
+Concentrations: - The mean HCB concentration at the bottom is higher
+than at the surface, suggesting that contaminants tend to accumulate
+more in deeper waters.This may be due to sedimentation and reduced
+mixing at greater depths.
+
+```         
+2. In terms of variability in Concentrations:
+```
+
+-The bottom concentrations exhibit greater variance and standard
+deviation, indicating higher variability in concentration levels at that
+depth. In contrast, surface concentrations are more consistent, with a
+lower variance and higher precision.
+
+# Prediction Analysis
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(extraDistr)
+
+# Degree of freedom
+df_surf <- 2 * post_alpha_surface
+df_bottom <- 2 * post_alpha_bottom
+
+pred_se_surf <- sqrt(post_beta_surface / (post_alpha_surface * k_surface))
+pred_se_bottom <- sqrt(post_beta_bottom / (post_alpha_bottom * k_bottom))
+
+# Generate predictions using Student's t-distribution
+n_pred <- 10000
+pred_surf <- rt(n_pred, df = df_surf) * pred_se_surf + post_mu_surface
+pred_bottom <- rt(n_pred, df = df_bottom) * pred_se_bottom + post_mu_bottom
+
+# Create data frames for ggplot2
+data_surf <- data.frame(
+  pred = pred_surf,
+  type = "Surface"
+)
+
+data_bottom <- data.frame(
+  pred = pred_bottom,
+  type = "Bottom"
+)
+
+# Function to compute the theoretical density for a given x value
+theoretical_density <- function(x, post_mean, pred_se, df) {
+  dt((x - post_mean) / pred_se, df = df) / pred_se
+}
+
+# Create surface plot
+p1 <- ggplot(data_surf, aes(x = pred)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "blue", alpha = 0.6, color = "black") +
+  stat_function(fun = theoretical_density, args = list(post_mean = post_mu_surface, pred_se = pred_se_surf, df = df_surf), color = "red", size = 1.2) +
+  labs(title = "Predictive Distribution (Surface)", x = "HCB Concentration", y = "Density") +
+  theme_minimal()
+
+# Create bottom plot
+p2 <- ggplot(data_bottom, aes(x = pred)) +
+  geom_histogram(aes(y = ..density..), bins = 30, fill = "green", alpha = 0.6, color = "black") +
+  stat_function(fun = theoretical_density, args = list(post_mean = post_mu_bottom, pred_se = pred_se_bottom, df = df_bottom), color = "red", size = 1.2) +
+  labs(title = "Predictive Distribution (Bottom)", x = "HCB Concentration", y = "Density") +
+  theme_minimal()
+
+# Display the two plots side by side
+library(gridExtra)
+grid.arrange(p1, p2, ncol = 2)
+
+```
+
+### 1. **Predictive Distribution (Surface):** 
+
+-   **Histogram :** The histogram represents the density of predicted
+    HCB concentrations at the surface level. Most of the predictions
+    fall within the range of 4.5 to 5.5 units of HCB concentration.
+
+-   **Density Curve (red line):** The red line overlaid on the histogram
+    represents a fitted probability density function . The shape is
+    unimodal and slightly skewed to the right, with a peak around 5.0
+    units.
+
+-   **Skewness:** The tail on the right-hand side suggests the
+    distribution is slightly skewed right, indicating there are a few
+    predictions with higher-than-average HCB concentrations, but most
+    predictions cluster around 5.0.
+
+### 2. **Predictive Distribution (Bottom):**
+
+-   **Histogram :** This histogram represents the density of predicted
+    HCB concentrations at the bottom level. The data is more spread out
+    than the surface predictions, ranging from approximately 5.0 to 7.0
+    units.
+
+-   **Density Curve (red line):** The density curve indicates a peak
+    around 6.0 units, but the distribution is also slightly skewed
+    right. The peak is more pronounced compared to the surface plot,
+    suggesting that higher HCB concentrations are more frequent at the
+    bottom.
+
+-   **Skewness:** Similar to the surface plot, there’s a right skew,
+    indicating that while most predictions hover around 6.0, there are
+    some higher concentrations.
+
+### **General Observations:**
+
+-   The surface predictions show lower concentrations of HCB, centered
+    around 5.0 units, while the bottom predictions are higher, centered
+    around 6.0 units.
+
+-   The difference in concentration levels suggests that HCB may
+    accumulate more at the bottom than at the surface.
+
+-   Both distributions have a slight right skew, indicating that while
+    most predictions are close to the center, some higher concentrations
+    are possible.
+
+```{r}
+# Load necessary libraries
+library(extraDistr)
+library(ggplot2)
+
+# Number of Monte Carlo samples
+n_pred <- 10000
+
+# Generate predictions using Student's t-distribution (Surface and Bottom)
+pred_surf <- rt(n_pred, df = df_surf) * pred_se_surf + post_mu_surface
+pred_bottom <- rt(n_pred, df = df_bottom) * pred_se_bottom + post_mu_bottom
+
+# Monte Carlo Sampling from Posterior (Surface and Bottom)
+rho_surface <- rgamma(n_pred, shape = post_alpha_surface, rate = post_beta_surface)
+mean_surface_samples <- rnorm(n_pred, mean = post_mu_surface, sd = 1 / sqrt(k_surface * rho_surface))
+
+rho_bottom <- rgamma(n_pred, shape = post_alpha_bottom, rate = post_beta_bottom)
+mean_bottom_samples <- rnorm(n_pred, mean = post_mu_bottom, sd = 1 / sqrt(k_bottom * rho_bottom))
+
+# Compute density for predictions (Surface and Bottom)
+interp_surf <- density(pred_surf)
+mc_interp_surf <- density(mean_surface_samples)
+
+interp_bottom <- density(pred_bottom)
+mc_interp_bottom <- density(mean_bottom_samples)
+
+```
+
+```{r}
+# Resampling/interpolating the data for plotting
+
+# Define the common length we want for all vectors (use the smallest length as reference)
+common_length <- min(length(interp_surf$x), length(mc_interp_surf$x))
+
+# Resample or interpolate the data to have the same length
+interp_surf_resampled <- approx(interp_surf$x, interp_surf$y, n = common_length)
+mc_interp_surf_resampled <- approx(mc_interp_surf$x, mc_interp_surf$y, n = common_length)
+
+# Create data frames for surface plot
+surface_data <- data.frame(
+  value = c(interp_surf_resampled$x, mc_interp_surf_resampled$x),
+  density = c(interp_surf_resampled$y, mc_interp_surf_resampled$y),
+  type = rep(c("Prediction (Surface)", "Monte Carlo (Surface)"), each = common_length)
+)
+
+# Resample or interpolate the data for the bottom plot
+interp_bottom_resampled <- approx(interp_bottom$x, interp_bottom$y, n = common_length)
+mc_interp_bottom_resampled <- approx(mc_interp_bottom$x, mc_interp_bottom$y, n = common_length)
+
+# Create data frames for bottom plot
+bottom_data <- data.frame(
+  value = c(interp_bottom_resampled$x, mc_interp_bottom_resampled$x),
+  density = c(interp_bottom_resampled$y, mc_interp_bottom_resampled$y),
+  type = rep(c("Prediction (Bottom)", "Monte Carlo (Bottom)"), each = common_length)
+)
+
+# Plot for Surface
+ggplot(surface_data, aes(x = value, y = density, color = type)) +
+  geom_line(size = 1.2) +
+  labs(title = "Surface: Comparison of Prediction and Monte Carlo Distributions",
+       x = "HCB Concentration",
+       y = "Density") +
+  theme_minimal() +
+  scale_color_manual(values = c("blue", "cyan")) +
+  theme(legend.position = "top", legend.title = element_blank())
+
+# Plot for Bottom
+ggplot(bottom_data, aes(x = value, y = density, color = type)) +
+  geom_line(size = 1.2) +
+  labs(title = "Bottom: Comparison of Prediction and Monte Carlo Distributions",
+       x = "HCB Concentration",
+       y = "Density") +
+  theme_minimal() +
+  scale_color_manual(values = c("green", "orange")) +
+  theme(legend.position = "top", legend.title = element_blank())
+
+```
+
+### **Interpratation:**
+
+-   **Monte Carlo (Blue for Surface, Green for Bottom)**:
+
+```         
+-   **Narrowest distribution** with tightly concentrated values.
+
+-   Peaks at **5.0** for surface and **6.0** for bottom, indicating
+    less variability.
+
+-   Reflects **more certainty** and a **constrained range** of
+    concentrations, with fewer extreme values.
+```
+
+```         
+
+-   **Prediction (Cyan for Surface, Orange for Bottom)**:
+```
+
+-   **Moderate distribution** that balances between Monte Carlo’s narro
+    focus and the broader theoretical range.
+
+-   Peaks at the same values as Monte Carlo (**5.0** for surface and
+    **6.0** for bottom) but allows for slightly more spread, reflecting
+    **some variability**.
+
+-   Acts as a middle ground, acknowledging variability without going to
+    theoretical extremes. \`\`\`
+
+-   **Key Takeaways**:
+
+    **Monte Carlo** shows the most **certainty** with concentrated
+    predictions.
+
+    **Prediction** finds a **balance** between certainty (Monte Carlo)
+    and uncertainty (Theoretical), offering a realistic compromise.
+
+This comparison applies consistently across both the **surface** and
+**bottom** layers, with the bottom layer having higher concentration
+peaks overall.

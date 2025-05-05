@@ -1,0 +1,1241 @@
+---
+title: "END SEM- BAYESIAN"
+author: "NEEMA NDANU"
+date: "2025-03-29"
+output:
+  html_document: default
+  word_document: default
+editor_options:
+  markdown:
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(fastmap)
+
+```
+
+## Case Study 11: Bayesian Estimation in Environmental Monitoring (Air Pollution Levels)
+
+Narrative A metropolitan area is engaged in continuous environmental
+monitoring to track air quality. Daily measurements of particulate
+matter are modeled as normally distributed, but the mean and variance
+may vary due to seasonal effects and local conditions. Policy makers
+need robust estimates to trigger public health warnings and
+environmental interventions.
+
+Bayesian Model
+
+Prior Distribution: A conjugate Normal-Inverse-Gamma prior is used: 𝜇 ∣
+𝜎2 ∼𝒩(𝜇0,𝜎2/𝜅0), 𝜎2 ∼ Inverse-Gamma(𝛼0,𝛽0)
+
+Hyperparameters are chosen based on historical air quality data.
+
+Likelihood Function: For daily pollutant levels 𝑌𝑖: 𝑌𝑖 ∣ 𝜇,𝜎2 ∼ 𝒩(𝜇,𝜎2)
+
+## QUESTIION 1
+
+### Use Gibbs sampling to obtain the joint posterior for 𝜇 and 𝜎2.
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(MASS)
+library(coda)
+library(gridExtra)
+
+# Set reproducibility
+set.seed(42)
+
+# Simulated Air Quality Data (Daily PM2.5 Levels)
+n <- 100
+Y <- rnorm(n, mean = 20, sd = 10)  
+
+# Prior Parameters
+prior_mean <- 20      # Prior mean
+kappa_0 <- 1          # Prior precision parameter
+alpha_0 <- 2          # Prior shape parameter for inverse-gamma
+beta_0 <- 1           # Prior scale parameter for inverse-gamma
+
+# Number of Samples
+num_samples <- 50000
+burn_in <- 5000  # Burn-in period
+
+# Initialize Storage 
+mean_samples <- numeric(num_samples)
+var_samples <- numeric(num_samples)
+
+# Initial Values
+var_samples[1] <- 1 / rgamma(1, shape = alpha_0, rate = beta_0)  
+mean_samples[1] <- rnorm(1, mean = prior_mean, sd = sqrt(var_samples[1] / kappa_0))  
+
+# Precompute mean(Y) for efficiency
+Y_mean <- mean(Y)
+
+# Gibbs Sampling
+for (t in 2:num_samples) {
+    # Sample variance (σ²) from Inverse-Gamma
+    alpha_n <- alpha_0 + n / 2
+    beta_n <- beta_0 + 0.5 * (sum((Y - mean_samples[t-1])^2) + ((kappa_0 * n) / (kappa_0 + n)) * (Y_mean - prior_mean)^2)
+    var_samples[t] <- 1 / rgamma(1, shape = alpha_n, rate = beta_n)
+
+    # Sample mean (μ) from Normal
+    mu_n <- (kappa_0 * prior_mean + n * Y_mean) / (kappa_0 + n)
+    kappa_n <- kappa_0 + n
+    mean_samples[t] <- rnorm(1, mean = mu_n, sd = sqrt(var_samples[t] / kappa_n))
+}
+
+# Remove Burn-in
+mean_samples <- mean_samples[(burn_in + 1):num_samples]
+var_samples <- var_samples[(burn_in + 1):num_samples]
+
+# Compute posterior means
+posterior_mu <- mean(mean_samples)
+posterior_var <- mean(var_samples)
+
+# 95% credible intervals
+mean_ci <- quantile(mean_samples, c(0.025, 0.975))
+var_ci <- quantile(var_samples, c(0.025, 0.975))
+
+# Print posterior estimates and credible intervals
+cat("Posterior Mean (μ):", posterior_mu, "\n")
+cat("95% CI for μ:", mean_ci, "\n")
+cat("Posterior Variance (σ²):", posterior_var, "\n")
+cat("95% CI for σ²:", var_ci, "\n")
+```
+
+The estimated mean pollution level is around 20.33. The 95% credible interval (CI) is [18.31, 22.38], meaning there is a 95% probability that the true mean falls in this range.
+
+The estimated variance of pollution levels is around 106.4488.The 95% CI for variance is [80.75, 140.40], indicating the uncertainty in the spread of pollution measurements.
+```{r}
+# Trace plot for μ using Gibbs
+p_mu_gibbs <- ggplot(data.frame(Iteration = 1:length(mean_samples), Value = mean_samples), 
+                     aes(x = Iteration, y = Value)) +
+  geom_line(color = "blue", alpha = 0.7) +
+  labs(title = "Trace Plot for μ (Gibbs Sampling)", x = "Iteration", y = "μ") +
+  theme_minimal()
+
+# Trace plot for σ² using Gibbs
+p_sigma2_gibbs <- ggplot(data.frame(Iteration = 1:length(var_samples), Value = var_samples), 
+                         aes(x = Iteration, y = Value)) +
+  geom_line(color = "blue", alpha = 0.7) +
+  labs(title = "Trace Plot for σ² (Gibbs Sampling)", x = "Iteration", y = "σ²") +
+  theme_minimal()
+
+grid.arrange(p_mu_gibbs, p_sigma2_gibbs, ncol = 1)
+```
+Top Plot: μ (mean)
+
+- It appears stable, possibly because it's conditionally sampling from the full conditional distributions.
+
+Bottom Plot: σ² (variance)
+
+- It is smoother hence better convergence or efficiency.
+
+```{r}
+# Create data frame for visualization
+df_posterior <- data.frame(mu = mean_samples, sigma_sq = var_samples)
+
+# Posterior Distribution Plots
+par(mfrow = c(1, 2))  # Arrange plots side by side
+
+# Mean (mu) posterior distribution as a smooth density curve
+plot(density(mean_samples), col = "blue", lwd = 2, 
+     main = expression(paste("Posterior of ", mu)), 
+     xlab = expression(mu), ylab = "Density")
+
+# Variance (sigma^2) posterior distribution as a smooth density curve
+plot(density(var_samples), col = "red", lwd = 2, 
+     main = expression(paste("Posterior of ", sigma^2)), 
+     xlab = expression(sigma^2), ylab = "Density")
+```
+
+This diagram consists of two separate density plots, showing the marginal posteriors of μ (left) and σ2 (right).
+
+Left Plot: Posterior of μ 
+- This density plot (in blue) represents the posterior distribution of the mean (μ). 
+-The peak around 20 suggests that the most probable value for the mean PM2.5 level is about 20. 
+- The distribution is approximately normal, as expected from Bayesian updating.
+
+Right Plot: Posterior of σ 2 
+- This density plot (in red) represents the posterior distribution of variance (σ 2). 
+- The peak around 100 suggests that the most probable variance of PM2.5 levels is about 100. 
+- The distribution is skewed right, which is typical for an Inverse-Gamma posterior.
+
+## QUESTIION 2
+
+### Validate your results using Metropolis-Hastings.
+
+```{r}
+# Initialize Storage
+mu_samples <- numeric(num_samples)
+sigma2_samples <- numeric(num_samples)
+acceptance_tracker <- numeric(num_samples)  # Track accept/reject
+
+# Initial Values
+sigma2_samples[1] <- 1 / rgamma(1, shape = alpha_0, rate = beta_0)  
+mu_samples[1] <- rnorm(1, mean = prior_mean, sd = sqrt(sigma2_samples[1] / kappa_0))  
+
+# Proposal Standard Deviations
+# Scale based on observed standard deviation of data
+sigma_mu <- 0.1 * sd(Y) 
+
+# Scale based on log-transformed variance
+sigma_log_sigma2 <- 0.1 * sd(log(Y^2))
+
+# Log of the posterior density function
+log_posterior <- function(mu, sigma2) {
+  # Ensures that σ² is strictly positive
+  if (sigma2 <= 0) return(-Inf) 
+  #  Log of Prior for 𝜇
+  log_prior_mu <- dnorm(mu, mean = prior_mean, sd = sqrt(sigma2 / kappa_0), log = TRUE)
+  # Log of Prior for σ²
+  log_prior_sigma2 <- dgamma(1/sigma2, shape = alpha_0, rate = beta_0, log = TRUE) - 2*log(sigma2)
+  # Log-Likelihood Function
+  log_likelihood <- sum(dnorm(Y, mean = mu, sd = sqrt(sigma2), log = TRUE))
+  # Compute Log-Posterior
+  return(log_prior_mu + log_prior_sigma2 + log_likelihood)
+}
+
+
+# Metropolis-Hastings Sampling
+for (t in 2:num_samples) {
+  # Propose new mu from Normal distribution
+  mu_proposed <- rnorm(1, mean = mu_samples[t-1], sd = sigma_mu)
+  
+  # Propose new σ² from Log-Normal distribution
+  log_sigma2_proposed <- log(sigma2_samples[t-1]) + rnorm(1, mean = 0, sd = sigma_log_sigma2)
+  sigma2_proposed <- exp(log_sigma2_proposed)
+  
+  # Compute acceptance probability
+  log_acceptance_ratio <- log_posterior(mu_proposed, sigma2_proposed) - log_posterior(mu_samples[t-1], sigma2_samples[t-1])
+  acceptance_ratio <- exp(log_acceptance_ratio)
+  
+  # Accept or reject the proposed sample
+  if (runif(1) < acceptance_ratio) {
+    mu_samples[t] <- mu_proposed
+    sigma2_samples[t] <- sigma2_proposed
+    acceptance_tracker[t] <- 1  # Accepted
+  } else {
+    mu_samples[t] <- mu_samples[t-1]
+    sigma2_samples[t] <- sigma2_samples[t-1]
+    acceptance_tracker[t] <- 0  # Rejected
+  }
+}
+
+
+# Remove Burn-in Samples
+mu_samples <- mu_samples[(burn_in + 1):num_samples]
+sigma2_samples <- sigma2_samples[(burn_in + 1):num_samples]
+acceptance_tracker <- acceptance_tracker[(burn_in + 1):num_samples]  # Adjust acceptance tracker
+
+# Posterior means
+posterior_mu <- mean(mu_samples)
+posterior_sigma2 <- mean(sigma2_samples)
+
+# 95% credible intervals
+mu_ci <- quantile(mu_samples, c(0.025, 0.975))
+sigma2_ci <- quantile(sigma2_samples, c(0.025, 0.975))
+
+# Display results
+cat("Posterior Mean (μ):", posterior_mu, "\n")
+cat("95% CI for μ:", mu_ci, "\n")
+cat("Posterior Variance (σ²):", posterior_sigma2, "\n")
+cat("95% CI for σ²:", sigma2_ci, "\n")
+
+# Acceptance Rate
+acceptance_rate <- mean(acceptance_tracker)
+cat("Overall Acceptance Rate:", acceptance_rate, "\n")
+
+# Summary of Acceptance Decisions
+acceptance_summary <- table(acceptance_tracker)
+print(acceptance_summary)
+
+
+```
+
+Instead of drawing exact samples, the Metropolis-Hastings (MH) algorithm proposes new parameter values and accepts or rejects them based on the posterior probability.
+
+The estimated mean level of PM2.5 is approximately 20.35. The 95% credible interval (18.37 to 22.39) indicates that, given the data and prior beliefs, there is a 95% probability that the true mean of PM2.5 levels falls within this range.
+
+The estimated variance is about 103.32, implying that PM2.5 values fluctuate with a standard deviation of approximately 10.16 (√103.32 ≈ 10.16). The 95% credible interval (79.35 to 134.48) suggests a plausible range for the variance.
+
+Comparison of Gibbs Sampling and MH Sampling Key observations and
+insights:
+ 
+The posterior mean of μ from MH (20.35) closely matches the estimate from Gibbs sampling (20.33).
+
+The posterior mean of σ² from MH (103.32) is also similar to that from Gibbs (106.45).
+
+The credible intervals (CIs) significantly overlap, indicating that both methods produce consistent results.
+
+The acceptance tracker shows: - 19,470 rejected proposals (0s) - 25,530 accepted proposals (1s)
+
+This means that 56.7% of proposals were accepted and 43.3% of proposals were rejected. This is a reasonable acceptance rate.
+
+Conclusion Since MH and Gibbs sampling yield similar estimates, this confirms that the Bayesian model is well-specified and that the posterior distribution is being properly sampled.
+```{r}
+# Trace plot for μ using Metropolis-Hastings
+p_mu_mh <- ggplot(data.frame(Iteration = 1:length(mu_samples), Value = mu_samples), 
+                  aes(x = Iteration, y = Value)) +
+  geom_line(color = "red", alpha = 0.7) +
+  labs(title = "Trace Plot for μ (Metropolis-Hastings)", x = "Iteration", y = "μ") +
+  theme_minimal()
+
+# Trace plot for σ² using Metropolis-Hastings
+p_sigma2_mh <- ggplot(data.frame(Iteration = 1:length(sigma2_samples), Value = sigma2_samples), 
+                      aes(x = Iteration, y = Value)) +
+  geom_line(color = "red", alpha = 0.7) +
+  labs(title = "Trace Plot for σ² (Metropolis-Hastings)", x = "Iteration", y = "σ²") +
+  theme_minimal()
+
+grid.arrange(p_mu_mh, p_sigma2_mh, ncol = 1)
+```
+Top Plot: μ (mean)
+
+- The plot fluctuates around a central region (around μ = 20–22), which indicates that the sampler is exploring the posterior distribution.
+
+- Despite the plot appears fairly "noisy", it seems to have reached and stayed within a stable region.
+
+Bottom Plot: σ² (variance)
+
+- The red lines that represent Metropolis-Hastings shows more variability but still centers around the same range (80--120). The log-Normal proposal for σ2 leads to occasional larger jumps
+
+```{r}
+# Plot Posterior Distributions
+par(mfrow = c(1, 2))  
+
+# Posterior distribution of mu (mean) as a smooth density curve
+plot(density(mu_samples), col = "blue", lwd = 2, 
+     main = expression(paste("Posterior of ", mu)), 
+     xlab = expression(mu), ylab = "Density")
+
+# Posterior distribution of sigma^2 (variance) as a smooth density curve
+plot(density(sigma2_samples), col = "red", lwd = 2, 
+     main = expression(paste("Posterior of ", sigma^2)), 
+     xlab = expression(sigma^2), ylab = "Density")
+
+```
+
+The diagram shows two plot for posterior of mean and the other for variance
+
+Left Plot (Posterior of μ):- 
+- The peak around μ=20 suggests that the most likely value for the mean PM2.5 level is about 20. The distribution is symmetric and centered, indicating a well-behaved posterior for μ.
+
+Right Plot (Posterior of σ 2):- 
+- The distribution is right-skewed, meaning there is a greater probability of higher variance values. The peak around σ 2 =100 suggests that the estimated variance of PM2.5 levels is approximately 100, with most probable values lying between 80 and 120.
+
+The similarity of these results to those obtained via Gibbs sampling confirms the robustness of the Bayesian model.
+
+## QUESTION 3
+
+### Simulate future air quality scenarios and discuss how these simulations could inform public policy.
+
+```{r}
+# Set number of future simulations
+# Simulating 100 future days
+num_future_days <- 100 
+num_simulations <- length(mean_samples) 
+
+# Generate future PM2.5 levels using posterior samples
+future_predictions <- replicate(num_future_days, rnorm(num_simulations, mean_samples, sqrt(var_samples)))
+
+# Compute posterior predictive mean and variance
+posterior_predictive_mean <- mean(as.vector(future_predictions))  
+posterior_predictive_var <- var(as.vector(future_predictions))  
+
+# Compute daily mean for future predictions
+future_mean <- apply(future_predictions, 2, mean)
+
+# Print results
+cat("Posterior Predictive Mean (Future PM2.5):", posterior_predictive_mean, "\n")
+cat("Posterior Predictive Variance:", posterior_predictive_var, "\n")
+```
+
+The expected average PM2.5 level over the next 100 days, is 20.32612
+while the variance 107.64 indicates expected fluctuations in daily PM2.5
+levels.
+
+```{r}
+# Create a data frame for plotting
+future_days <- seq(1, num_future_days)
+future_data <- data.frame(Day = future_days, PM2.5 = future_mean)
+
+# Plot future PM2.5 
+ggplot(future_data, aes(x = Day, y = PM2.5)) +
+  geom_line(color = "blue", size = 1) + 
+  geom_point(color = "red", alpha = 0.5) + 
+  labs(title = "Simulated Future PM2.5 Levels",
+       x = "Future Days",
+       y = "Predicted PM2.5") +
+  theme_minimal()
+```
+
+The plot shows significant fluctuations in PM2.5 levels over time,
+indicating high variability.
+
+A sharp spike around day 25 suggests an anomaly or an external factor
+influencing PM2.5 levels.
+
+The overall trend oscillates with periodic fluctuations instead of
+following a steady increase or decrease. This pattern occurs because the
+data was generated using a Monte Carlo Simulation, which introduces
+randomness into the predictions.
+
+```{r}
+# Plot Posterior Predictive Distribution
+plot(density(as.vector(future_predictions)), col = "purple", lwd = 2,
+     main = expression(paste("Posterior Predictive Distribution of Future PM2.5")),
+     xlab = expression("Future PM2.5 Concentration (µg/m³)"), ylab = "Density")
+```
+
+The purple curve represents the predicted range of future PM
+concentrations (µg/m³) over 100 days.The distribution is approximately
+normal (bell-shaped), centered around 20µg/m³. Most values fall between
+0--40 µg/m³, but the tails extend to -40 and 60, reflecting uncertainty.
+
+```{r}
+# Set air quality threshold for public policy action
+threshold <- 25  
+
+# Compute probability of exceeding the threshold
+prob_exceedance <- mean(future_predictions > threshold)  
+
+# Print result
+cat("Probability of exceeding threshold:", prob_exceedance, "\n")
+```
+
+The output reveals a 32.5% probability that daily PM2.5 levels will
+exceed the 25 µg/m³ threshold in future observations This exceedance
+probability (32.5%) could automatically activate air quality action
+plans, trigger mandatory pollution reduction measures or initiate public
+communication campaigns.
+
+```{r}
+# Decision Rule: Trigger Intervention
+if (prob_exceedance > 0.7) {
+  cat("EMERGENCY MEASURES ACTIVATED: >70% chance of exceedance\n")
+} else if (prob_exceedance > 0.5) {
+  cat("INDUSTRIAL CURBS: 50-70% chance of exceedance\n")
+} else if (prob_exceedance > 0.3) {
+  cat("PUBLIC ADVISORIES: 30-50% chance of exceedance\n")
+} else if (prob_exceedance > 0.1) {
+  cat("MONITOR CLOSELY: 10-30% chance of exceedance\n")
+} else {
+  cat("NO ACTION REQUIRED: <10% chance of exceedance\n")
+}
+
+```
+
+The output is triggered when Bayesian model predicts a 32.5% probability
+that daily PM2.5 levels will exceed the regulatory threshold (25 µg/m³).
+This falls within your 30--50% "Public Advisories" action tier.
+
+The public health implications for this outcome is a moderate risk level
+with the risk group being children, elderly, and people with respiratory
+conditions may experience symptoms such as irritation on the eyes or
+throat. Worst case may be worsening of asthma.
+
+Recommended Actions May Be Provided Through: 
+
+1. Public Communication -- Issue air quality alerts via media and social 
+   platforms, and display warnings on public transportation.
+
+2.  Support for Vulnerable Populations -- Advise sensitive groups such
+    as children, elderly, and individuals with respiratory conditions to
+    limit outdoor activities. Hospitals should also prepare for
+    potential increases in respiratory cases.
+
+3.  Schools and Workplaces -- Reduce strenuous outdoor activities, such
+    as physical education (PE) classes, to minimize exposure to poor air
+    quality.
+
+```{r}
+# Plot Posterior Predictive Distribution
+plot(density(as.vector(future_predictions)), col = "purple", lwd = 2,
+     main = expression(paste("Posterior Predictive Distribution of Future PM2.5")),
+     xlab = expression("Future PM2.5 Concentration (µg/m³)"), ylab = "Density")
+
+# Add threshold line for policy intervention
+abline(v = threshold, col = "red", lwd = 2, lty = 2)
+text(threshold + 1, 0.02, "Policy Threshold", col = "red", pos = 4)
+```
+
+The visualization combines Bayesian predictive modeling with policy
+decision-making to assess future air pollution risks.
+
+The peak at \~20 µg/m³ matches your posterior mean (20.33), indicating
+the most likely pollution level. The spread (0--40 µg/m³) reflects
+natural variability (σ² ≈ 107.64 → SD ≈ 10.4 µg/m³).
+
+Most days will be near 20 µg/m³ (safe), but the right tail shows
+potential spikes up to 60 µg/m³ (hazardous).
+
+```{r}
+# Define cost parameters (adjust based on policy)
+# Cost of a false alarm (e.g., unnecessary public alerts).
+C_F <- 50   
+# Cost of missing pollution event
+C_M <- 500  
+# Air quality intervention threshold
+T <- 25    
+
+# Compute posterior predictive probability P(θ > T | Y)
+prob_exceedance <- mean(future_predictions > T)
+
+# Compute decision threshold
+decision_threshold <- C_F / C_M
+
+# Apply Bayesian decision rule
+if (prob_exceedance > decision_threshold) {
+  cat("Trigger Public Health Intervention: High Risk of Pollution Exceedance!\n")
+} else {
+  cat("No Immediate Intervention Needed: Pollution Levels Within Safe Limits.\n")
+}
+
+# Print probability for reference
+cat("P(PM2.5 > 25):", prob_exceedance, "\n")
+cat("Decision Threshold:", decision_threshold, "\n")
+
+```
+
+The model implements a cost-sensitive decision rule to determine whether
+air quality interventions should be triggered.
+
+The decision accounts for two possible scenarios: - False Alarm (C_F =
+\$50) -- When the air is clean but an intervention is triggered. Impact:
+Wasted resources and potential public distrust.
+
+-   Missed Event (C_M = \$500) -- When pollution occurs but no action is
+    taken. Impact: Increased hospitalizations and long-term health
+    damage.
+
+Given that P(exceedance) = 0.325 (32.5%), which is greater than 10%, the
+model triggers an intervention.
+
+The reasoning behind this outcome is as follows:
+
+-   The cost of missing a pollution event (500) is 10 times higher than
+    the cost of a false alarm (\$50).
+
+-   Even at a 32.5% exceedance probability, taking action is justified
+    to minimize health risks and long-term damage.
+
+-   The model prioritizes intervention whenever the exceedance
+    probability exceeds 10%, ensuring preventive measures are taken in
+    time.
+
+## CRITICAL THINKING QUESTIONS
+## SEASONALITY EFFECT
+
+### Use Gibbs sampling to obtain the joint posterior for 𝜇 and 𝜎2.
+
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(MASS)
+library(coda)
+library(gridExtra)
+library(reshape2)
+
+# Set reproducibility
+set.seed(42)
+
+# Simulated Air Quality Data 
+n <- 365  # Daily data for one year
+dates <- seq.Date(from = as.Date("2023-01-01"), to = as.Date("2023-12-31"), by = "day")
+month <- as.numeric(format(dates, "%m"))
+
+# Define seasons: 1=Winter, 2=Spring, 3=Summer, 4=Fall
+season <- ifelse(month %in% c(12,1,2), 1,  # Winter
+          ifelse(month %in% 3:5, 2,         # Spring
+          ifelse(month %in% 6:8, 3,         # Summer
+          4)))                               # Fall
+
+# True seasonal effects :
+base_mean <- 20
+true_season_effects <- c(8, 1, 5, 2)  
+
+# Seasonal variances
+season_sd <- c(4, 3, 6, 3)  # SD for each season
+
+# Generate data with seasonal patterns
+Y <- base_mean + true_season_effects[season] + rnorm(n, mean = 0, sd = season_sd[season])
+
+# Prior Parameters (less informative priors)
+prior_mean <- 25      # Prior mean
+kappa_0 <- 1          # Prior precision parameter
+alpha_0 <- 2          # Prior shape parameter for inverse-gamma
+beta_0 <- 1           # Prior scale parameter for inverse-gamma
+
+# Seasonal effect priors
+sigma_season_prior <- 10  
+
+# Number of Samples
+num_samples <- 50000
+burn_in <- 5000
+
+# Initialize Storage 
+mean_samples <- numeric(num_samples)
+var_samples <- numeric(num_samples)
+season_effects <- matrix(0, nrow = num_samples, ncol = 4)
+
+# Initial Values
+var_samples[1] <- 1 / rgamma(1, shape = alpha_0, rate = beta_0)
+mean_samples[1] <- rnorm(1, mean = prior_mean, sd = sqrt(var_samples[1] / kappa_0))
+season_effects[1,] <- rnorm(4, mean = c(8, 1, 5, 2), sd = sigma_season_prior) 
+
+# Gibbs Sampling
+for (t in 2:num_samples) {
+    # Sample seasonal effects
+    for (s in 1:4) {
+        season_indices <- which(season == s)
+        Y_s <- Y[season_indices]
+        n_s <- length(Y_s)
+        
+        if (n_s > 0) {
+            season_mean <- mean(Y_s - mean_samples[t-1])
+            precision_data <- n_s/var_samples[t-1]
+            precision_prior <- 1/sigma_season_prior^2
+            
+            post_mean <- (season_mean * precision_data) / (precision_data + precision_prior)
+            post_var <- 1/(precision_data + precision_prior)
+            
+            season_effects[t,s] <- rnorm(1, mean = post_mean, sd = sqrt(post_var))
+        } else {
+            season_effects[t,s] <- rnorm(1, mean = 0, sd = sigma_season_prior)
+        }
+    }
+    
+    # Sample variance (σ²) from Inverse-Gamma
+    Y_adjusted <- Y - season_effects[t, season]
+    alpha_n <- alpha_0 + n/2
+    beta_n <- beta_0 + 0.5*sum((Y_adjusted - mean_samples[t-1])^2)
+    var_samples[t] <- 1/rgamma(1, shape = alpha_n, rate = beta_n)
+    
+    # Sample base mean (μ0) from Normal
+    Y_adjusted_mean <- mean(Y_adjusted)
+    kappa_n <- kappa_0 + n
+    mu_n <- (kappa_0*prior_mean + n*Y_adjusted_mean)/kappa_n
+    mean_samples[t] <- rnorm(1, mean = mu_n, sd = sqrt(var_samples[t]/kappa_n))
+}
+
+# Remove Burn-in and analyze results
+mean_samples <- mean_samples[(burn_in+1):num_samples]
+var_samples <- var_samples[(burn_in+1):num_samples]
+
+# Compute posterior means
+posterior_mu <- mean(mean_samples)
+posterior_var <- mean(var_samples)
+
+# 95% credible intervals
+mean_ci <- quantile(mean_samples, c(0.025, 0.975))
+var_ci <- quantile(var_samples, c(0.025, 0.975))
+
+# Print posterior estimates and credible intervals
+cat("Posterior Mean (μ):", posterior_mu, "\n")
+cat("95% CI for μ:", mean_ci, "\n")
+cat("Posterior Variance (σ²):", posterior_var, "\n")
+cat("95% CI for σ²:", var_ci, "\n")
+```
+
+The posterior mean,24.63301,represents the expected mean of the air quality (particulate matter) across all days, after accounting for the seasonal effects and prior assumptions. The 95% credible interval (CI) is [18.50975, 31.07808], meaning there is a 95% probability that the true mean falls in this range.
+
+The posterior variance,15.8266,represents the estimate of the variability or spread of the air quality data across the year.The 95% CI for variance is [13.70233, 18.28859], indicating the uncertainty in the spread of pollution measurements.
+
+```{r}
+# Trace plot for μ using Gibbs
+p_mu_gibbs <- ggplot(data.frame(Iteration = 1:length(mean_samples), Value = mean_samples), 
+                     aes(x = Iteration, y = Value)) +
+  geom_line(color = "blue", alpha = 0.7) +
+  labs(title = "Trace Plot for μ (Gibbs Sampling)", x = "Iteration", y = "μ") +
+  theme_minimal()
+
+# Trace plot for σ² using Gibbs
+p_sigma2_gibbs <- ggplot(data.frame(Iteration = 1:length(var_samples), Value = var_samples), 
+                         aes(x = Iteration, y = Value)) +
+  geom_line(color = "blue", alpha = 0.7) +
+  labs(title = "Trace Plot for σ² (Gibbs Sampling)", x = "Iteration", y = "σ²") +
+  theme_minimal()
+
+grid.arrange(p_mu_gibbs, p_sigma2_gibbs, ncol = 1)
+```
+Trace plot for mean:
+- The plot shows sampled values fluctuating around a central value (e.g., ~22–26).The lack of extreme jumps suggests stable sampling.
+
+Trace plot for variance:
+- Similar to μ, the values fluctuate around a central point (e.g., ~14–18).No long-term trends indicate convergence
+
+```{r}
+# Create data frame for visualization
+df_posterior <- data.frame(mu = mean_samples, sigma_sq = var_samples)
+
+# Set up side-by-side plots
+par(mfrow = c(1, 2))
+
+# Posterior Distribution of Mean (μ)
+plot(density(mean_samples), col = "blue", lwd = 2, 
+     main = expression(paste("Posterior of ", mu)), 
+     xlab = expression(mu), ylab = "Density")
+
+# Posterior Distribution of Variance (σ²)
+plot(density(var_samples), col = "red", lwd = 2, 
+     main = expression(paste("Posterior of ", sigma^2)), 
+     xlab = expression(sigma^2), ylab = "Density")
+```
+
+This diagram consists of two separate density plots, showing the marginal posteriors of μ (left) and σ2 (right)
+
+Left Plot: Posterior of μ - This density plot (in blue) represents the posterior distribution of the mean (μ). -The peak is around 24--25, suggesting that the most probable value for the mean air quality (PM2.5) level is approximately 24.6. - The distribution appears approximately normal, which aligns with Bayesian updating given the conjugate prior structure.
+
+Right Plot: Posterior of σ 2 - This density plot (in red) represents the posterior distribution of variance (σ 2). - The peak occurs around 15--16, indicating that the most probable variance of air quality measurements is approximately 15.8. - The distribution is right-skewed, which is expected for an Inverse-Gamma posterior.
+
+
+### Validate your results using Metropolis-Hastings.
+
+```{r}
+# Initialize Storage 
+mu_samples <- numeric(num_samples)
+sigma2_samples <- numeric(num_samples)
+season_effects <- matrix(0, nrow = num_samples, ncol = 4)
+acceptance_tracker <- numeric(num_samples)
+
+# Initial Values
+sigma2_samples[1] <- 1 / rgamma(1, shape = alpha_0, rate = beta_0)
+mu_samples[1] <- rnorm(1, mean = prior_mean, sd = sqrt(sigma2_samples[1] / kappa_0))
+season_effects[1,] <- rnorm(4, mean = c(8, 1, 5, 2), sd = sigma_season_prior)
+
+# Proposal Standard Deviations
+sigma_mu <- 0.05 * sd(Y)  
+sigma_log_sigma2 <- 0.05 * sd(log(Y^2))  
+sigma_season_proposal <- rep(0.5, 4)
+
+# Log of the posterior density function
+log_posterior <- function(mu, sigma2, season_eff) {
+  # Ensures that σ² is strictly positive
+  if (sigma2 <= 0) return(-Inf)
+  # Log of Prior for 𝜇
+  log_prior_mu <- dnorm(mu, mean = prior_mean, sd = sqrt(sigma2 / kappa_0), log = TRUE)
+  # Log of Prior for σ²
+  log_prior_sigma2 <- dgamma(1/sigma2, shape = alpha_0, rate = beta_0, log = TRUE) - 2*log(sigma2)
+  # Log of Prior for seasonal effects
+  log_prior_season <- sum(dnorm(season_eff, mean = 0, sd = sigma_season_prior, log = TRUE))
+  # Log-Likelihood (with seasonal effects)
+  seasonal_adjustment <- season_eff[season]
+  log_likelihood <- sum(dnorm(Y, mean = mu + seasonal_adjustment, sd = sqrt(sigma2), log = TRUE))
+  # Compute Log-Posterior
+  return(log_prior_mu + log_prior_sigma2 + log_prior_season + log_likelihood)
+}
+
+# Metropolis-Hastings Sampling with Seasonality
+for (t in 2:num_samples) {
+  # Store current values
+  current_mu <- mu_samples[t-1]
+  current_sigma2 <- sigma2_samples[t-1]
+  current_season <- season_effects[t-1,]
+  
+   # Propose new mu from Normal distribution
+  mu_proposed <- rnorm(1, mean = current_mu, sd = sigma_mu)
+  
+  # Propose new σ² from Log-Normal distribution
+  log_sigma2_proposed <- log(current_sigma2) + rnorm(1, mean = 0, sd = sigma_log_sigma2)
+  sigma2_proposed <- exp(log_sigma2_proposed)
+  
+  # Propose new seasonal effects from Normal distribution
+  season_proposed <- current_season + rnorm(4, mean = 0, sd = sigma_season_proposal)
+  
+  # Compute acceptance probability
+  log_current <- log_posterior(current_mu, current_sigma2, current_season)
+  log_proposed <- log_posterior(mu_proposed, sigma2_proposed, season_proposed)
+  
+  log_acceptance_ratio <- log_proposed - log_current
+  acceptance_ratio <- exp(log_acceptance_ratio)
+  
+  # Accept or reject all parameters jointly
+  if (runif(1) < acceptance_ratio) {
+    mu_samples[t] <- mu_proposed
+    sigma2_samples[t] <- sigma2_proposed
+    season_effects[t,] <- season_proposed
+    acceptance_tracker[t] <- 1
+  } else {
+    mu_samples[t] <- current_mu
+    sigma2_samples[t] <- current_sigma2
+    season_effects[t,] <- current_season
+    acceptance_tracker[t] <- 0
+  }
+}
+
+# Remove Burn-in
+mu_samples <- mu_samples[(burn_in+1):num_samples]
+sigma2_samples <- sigma2_samples[(burn_in+1):num_samples]
+season_effects <- season_effects[(burn_in+1):num_samples,]
+acceptance_tracker <- acceptance_tracker[(burn_in+1):num_samples]
+
+# Posterior summaries
+posterior_mu <- mean(mu_samples)
+posterior_sigma2 <- mean(sigma2_samples)
+
+# 95% credible intervals
+mu_ci <- quantile(mu_samples, c(0.025, 0.975))
+sigma2_ci <- quantile(sigma2_samples, c(0.025, 0.975))
+
+# Results
+cat("Posterior Mean (μ):", posterior_mu, "\n")
+cat("95% CI for μ:", mu_ci, "\n")
+cat("Posterior Variance (σ²):", posterior_sigma2, "\n")
+cat("95% CI for σ²:", sigma2_ci, "\n")
+cat("Acceptance Rate:", mean(acceptance_tracker), "\n")
+
+# Summary of Acceptance Decisions
+acceptance_summary <- table(acceptance_tracker)
+print(acceptance_summary)
+```
+
+Instead of drawing exact samples, the Metropolis-Hastings (MH) algorithm proposes new parameter values and accepts or rejects them based on their posterior probability.
+
+The posterior mean (μ) of 25.09728 represents the expected mean of the air quality (particulate matter) across all days, after accounting for the seasonal effects and prior assumptions. The 95% credible interval (CI) is [19.50193, 30.51919], meaning there is a 95% probability that the true mean falls within this range.
+
+The posterior variance (σ²) of 15.76038 represents the estimate of the variability or spread of the air quality data across the year. The 95% CI for variance is [13.59699, 18.2487], indicating the uncertainty in the spread of pollution measurements.
+
+The acceptance rate is 0.2526, meaning about 25.26% of the proposed parameter updates were accepted during the Metropolis-Hastings sampling. This is a good acceptance rate. In Metropolis-Hastings algorithms, an acceptance rate of around 20% to 60% is generally considered optimal for efficient exploration of the parameter space. Therefore, this acceptance rate suggests the algorithm is effectively exploring the parameter space while maintaining an efficient sampling process.
+
+Comparison of Gibbs Sampling and Metropolis-Hastings (MH) Sampling
+Key Observations and Insights:
+
+1.  Posterior Mean (μ)
+    -   The posterior mean of μ from MH (25.271) closely matches the estimate from Gibbs sampling (24.633) with a difference of ~0.64.
+    -   The credible intervals largely overlap. The MH interval is slightly narrower, likely due to the joint proposal strategy or efficient tuning of the proposal distributions.
+2.  Posterior Variance (σ²)
+    -   The posterior mean of σ² from MH (15.749) is also similar to that from Gibbs (15.827).
+    -   The credible intervals are almost the same, indicating strong agreement between the two methods.
+
+Conclusion
+Since both Gibbs sampling and Metropolis-Hastings produce highly similar estimates for the mean (μ), variance (σ²) this confirms that:
+- The Bayesian model is well-specified.
+- The posterior distribution is being sampled correctly.
+- The results are robust to the choice of sampling method.
+
+This comparison confirms that both methods are valid for air pollution monitoring, with Gibbs being slightly more efficient for this particular model structure. The close agreement strengthens confidence in the results for policy decisions.
+
+
+```{r}
+# Trace plot for μ using Metropolis-Hastings
+p_mu_mh <- ggplot(data.frame(Iteration = 1:length(mu_samples), Value = mu_samples), 
+                  aes(x = Iteration, y = Value)) +
+  geom_line(color = "red", alpha = 0.7) +
+  labs(title = "Trace Plot for μ (Metropolis-Hastings)", x = "Iteration", y = "μ") +
+  theme_minimal()
+
+# Trace plot for σ² using Metropolis-Hastings
+p_sigma2_mh <- ggplot(data.frame(Iteration = 1:length(sigma2_samples), Value = sigma2_samples), 
+                      aes(x = Iteration, y = Value)) +
+  geom_line(color = "red", alpha = 0.7) +
+  labs(title = "Trace Plot for σ² (Metropolis-Hastings)", x = "Iteration", y = "σ²") +
+  theme_minimal()
+
+grid.arrange(p_mu_mh, p_sigma2_mh, ncol = 1)
+```
+Trace Plot for μ
+- More pronounced fluctuations than Gibbs, with occasional jumps (e.g., spikes/drops).Overall stability suggests convergence after burn-in.
+
+Trace Plot for σ²
+- Similar to μ, but with less extreme variation. Values stabilize around ~14–16 after burn-in.
+
+```{r}
+# Plot Posterior Distributions
+par(mfrow = c(1, 2))  
+
+# Posterior of μ
+plot(density(mu_samples), 
+     col = "blue", 
+     lwd = 2, 
+     main = expression(paste("Posterior of ", mu)), 
+     xlab = expression(mu), 
+     ylab = "Density")
+
+# Posterior of σ²
+plot(density(sigma2_samples), 
+     col = "red", 
+     lwd = 2, 
+     main = expression(paste("Posterior of ", sigma^2)), 
+     xlab = expression(sigma^2), 
+     ylab = "Density")
+```
+
+The following are the key observation form all two graphs :-
+
+Left Panel: Posterior of μ(blue) - The shape is multi-modal (multiple peaks) → this suggests there are possibly seasonality effects that make some values more likely than others. -The range is approximately from 18 to 32. - The highest density (most probable μ values) is around 24--26.
+
+Right Panel: Posterior of σ² - This distribution is unimodal (one peak), and nicely bell-shaped, indicating high certainty about the value. - The most likely values lie between 13 and 17, with a peak near 15.
+
+
+### Simulate future air quality scenarios and discuss how these simulations could inform public policy.
+
+```{r}
+# Set number of future simulations
+num_future_days <- 366  # Simulating a full year to capture all seasons
+num_simulations <- length(mean_samples)
+
+# Generate future dates (starting the day after our last observation)
+future_dates <- seq.Date(from = as.Date("2024-01-01"), to = as.Date("2024-12-31"), by = "day")
+
+# Verify we have exactly 365 days (not 366 for a non-leap year)
+stopifnot(length(future_dates) == 366)
+
+# Determine season for each future date
+future_month <- as.numeric(format(future_dates, "%m"))
+future_season <- ifelse(future_month %in% c(12,1,2), 1,  # Winter
+                ifelse(future_month %in% 3:5, 2,         # Spring
+                ifelse(future_month %in% 6:8, 3,         # Summer
+                4)))                                    # Fall
+
+# Randomly select posterior samples to use for prediction
+sample_indices <- sample(1:length(mean_samples), num_future_days, replace = TRUE)
+
+# Generate future predictions with seasonality
+future_predictions <- numeric(num_future_days)
+for (i in 1:num_future_days) {
+  # Get the season for this future day
+  s <- future_season[i]
+  
+  # Sample from the posterior distributions
+  mu_i <- mean_samples[sample_indices[i]]
+  sigma2_i <- var_samples[sample_indices[i]]
+  season_effect_i <- season_effects[sample_indices[i], s]
+  
+  # Generate prediction with seasonal effect
+  future_predictions[i] <- rnorm(1, mean = mu_i + season_effect_i, sd = sqrt(sigma2_i))
+}
+
+# Create a data frame for visualization
+future_df <- data.frame(
+  Date = future_dates,
+  PM2.5 = future_predictions,
+  Season = factor(future_season, levels = 1:4, labels = c("Winter", "Spring", "Summer", "Fall"))
+)
+
+# Compute summary statistics by season
+seasonal_summary <- aggregate(PM2.5 ~ Season, data = future_df, 
+                             FUN = function(x) c(Mean = mean(x), 
+                                                SD = sd(x),
+                                                Q5 = quantile(x, 0.05),
+                                                Q95 = quantile(x, 0.95)))
+
+# Print seasonal summary
+print(seasonal_summary)
+
+# Visualize future predictions with seasonality
+ggplot(future_df, aes(x = Date, y = PM2.5, color = Season)) +
+  geom_point(alpha = 0.6) +  
+  labs(title = "Future PM2.5 Concentrations by Date",
+       x = "Date",
+       y = "PM2.5 (μg/m³)",
+       color = "Season") +
+  theme_minimal() +
+  scale_color_manual(values = c("Winter" = "blue",  
+                               "Spring" = "green", 
+                               "Summer" = "red", 
+                               "Fall" = "orange")) 
+```
+
+Winter (Blue): Generally exhibits higher PM2.5 levels, likely due to factors like increased heating, lower atmospheric dispersion, and potential temperature inversions.
+
+Spring (Green): Shows a slight decrease in PM2.5 levels, possibly due to better air circulation and reduced emissions from heating sources.
+
+Summer (Red): Has higher variability, with some peak pollution events. High temperatures may contribute to secondary pollutant formation.
+
+Fall (Orange): Appears to show moderate pollution levels, transitioning from summer to winter.
+
+```{r}
+# Calculate posterior predictive distribution statistics
+posterior_predictive_mean <- mean(future_predictions)
+posterior_predictive_var <- var(future_predictions)
+
+# Print results
+cat("Posterior Predictive Mean (with seasonality):", round(posterior_predictive_mean, 2), "μg/m³\n")
+cat("Posterior Predictive Variance (with seasonality):", round(posterior_predictive_var, 2), "\n")
+
+# Calculate seasonal posterior predictive statistics
+seasonal_pp_means <- tapply(future_predictions, future_season, mean)
+seasonal_pp_vars <- tapply(future_predictions, future_season, var)
+
+cat("Seasonal Posterior Predictive Means:\n")
+print(round(seasonal_pp_means, 2))
+cat("\nSeasonal Posterior Predictive Variances:\n")
+print(round(seasonal_pp_vars, 2))
+```
+
+This code calculates the posterior predictive distribution statistics for future PM2.5 concentrations, taking seasonality into account.
+
+Winter (1) has the highest mean PM2.5 (26.31 μg/m³), indicating worse air quality.Winter's high PM2.5 levels support stricter emissions regulations, particularly for heating sources.
+
+Spring (2) and Fall (4) have lower means, suggesting relatively cleaner air.Spring and Fall improvements suggest possible natural dispersion benefits, which could inform seasonal restrictions on industrial activities
+
+Summer (3) has a higher variance (30.96), indicating more fluctuations in pollution levels.Summer's high variance implies unpredictable pollution spikes, possibly due to secondary pollutant formation from heat and photochemical reactions.
+
+```{r}
+# Plot Posterior Predictive Distribution
+plot(density(as.vector(future_predictions)), col = "purple", lwd = 2,
+     main = expression(paste("Posterior Predictive Distribution of Future PM2.5")),
+     xlab = expression("Future PM2.5 Concentration (µg/m³)"), ylab = "Density")
+```
+
+The plot you provided represents the Posterior Predictive Distribution of Future PM2.5 Concentration based on Bayesian inference.
+
+The smooth curve represents the probability distribution of PM2.5 concentration based on the posterior samples.
+
+The peak of the curve indicates the most likely predicted PM2.5 concentration.
+
+The slightly right-skewed shape suggests that while most predictions fall within a central range, higher PM2.5 concentrations are possible but less likely.
+
+The density peak (\~20-30 µg/m³) suggests that most future predictions cluster around this range.
+
+The tail extending beyond 40 µg/m³ indicates the possibility of extreme pollution events, though they are rare.
+
+```{r}
+# Set air quality thresholds for public policy action
+threshold <- 25  # Standard threshold (µg/m³)
+
+# Compute overall probability of exceeding the threshold
+prob_exceedance <- mean(future_predictions > threshold)
+
+# Compute seasonal probabilities of exceedance
+seasonal_exceedance <- tapply(future_predictions, future_season, 
+                             function(x) mean(x > threshold))
+
+# Convert to named vector with season labels
+seasonal_exceedance <- setNames(seasonal_exceedance, 
+                               c("Winter", "Spring", "Summer", "Fall"))
+
+# Print results
+cat("Overall Probability of Exceeding", threshold, "µg/m³:", 
+    round(prob_exceedance, 3), "\n\n")
+cat("Seasonal Exceedance Probabilities:\n")
+print(round(seasonal_exceedance, 3))
+```
+
+There is a 38.3% chance that future PM2.5 concentrations will exceed 25 µg/m³.
+
+Winter: 54.9% chance PM2.5 \> 25 µg/m³ (Highest risk)
+
+Summer: 47.8% chance PM2.5 \> 25 µg/m³
+
+Fall: 26.4% chance PM2.5 \> 25 µg/m³
+
+Spring: 23.9% chance PM2.5 \> 25 µg/m³ (Lowest risk)
+
+Winter has the highest exceedance probability (54.9%), suggesting pollution is worst during colder months, possibly due to increased emissions from heating and stagnant air conditions.
+
+Spring (23.9%) and Fall (26.4%) have lower risks, likely due to better atmospheric dispersion.
+
+Summer still has a high exceedance probability (47.8%), possibly due to wildfires, ozone interactions, or industrial activity.
+
+```{r}
+# Create visualization data frame
+exceedance_df <- data.frame(
+  Season = factor(names(seasonal_exceedance), 
+                 levels = c("Winter", "Spring", "Summer", "Fall")),
+  Probability = seasonal_exceedance
+)
+
+# Visualize seasonal exceedance probabilities
+# Create visualization with black reference line and explicit "Overall Exceedance Prob" label
+ggplot(exceedance_df, aes(x = Season, y = Probability, fill = Season)) +
+  geom_col(width = 0.7, alpha = 0.8) +
+  geom_hline(yintercept = prob_exceedance, 
+             linetype = "solid", 
+             color = "black", 
+             linewidth = 1.2) +  # Changed to solid black line
+  scale_fill_manual(values = c("Winter" = "blue", 
+                              "Spring" = "green", 
+                              "Summer" = "red", 
+                              "Fall" = "purple")) +
+  labs(title = paste("Probability of PM2.5 Exceeding", threshold, "µg/m³"),
+       subtitle = "Seasonal Variation in Air Quality Risk",
+       y = "Exceedance Probability", 
+       x = "Season") +
+  theme_minimal(base_size = 14) +
+  theme(legend.position = "none",
+        panel.grid.major.x = element_blank()) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     expand = expansion(mult = c(0, 0.1))) +
+  annotate("text", 
+           x = 3.5, 
+           y = prob_exceedance + 0.03, 
+           label = paste("Overall Exceedance Prob:", round(prob_exceedance*100, 1), "%"), 
+           color = "black",
+           fontface = "bold",
+           size = 5) +
+  geom_text(aes(label = paste0(round(Probability*100, 0), "%")), 
+            vjust = -0.5, 
+            size = 5,
+            fontface = "bold")
+```
+
+The bar chart visually represents seasonal exceedance probabilities with a reference line for overall probability.
+
+Winter has the highest probability (55%) → Indicates the worst pollution levels.
+
+Summer also has a high probability (48%) → Possible wildfire/ozone effects.
+
+Spring (24%) and Fall (26%) have lower risks → Suggests better air dispersion.
+
+Overall exceedance probability is 38.3% → Affects long-term public health policies.
+
+```{r}
+# Decision Rules with Seasonal Adjustments
+cat("\n=== SEASONAL INTERVENTION STRATEGY ===\n")
+
+# Define seasonal thresholds (can be adjusted)
+seasonal_thresholds <- seasonal_exceedance
+
+# Apply different rules per season
+for (season in c("Winter", "Spring", "Summer", "Fall")) {
+  prob <- seasonal_exceedance[season]
+  
+  cat(sprintf("\n%s (%.1f%% exceedance risk): ", season, prob*100))
+  
+  if (prob > seasonal_thresholds[season]) {
+    # Winter gets stricter measures due to health vulnerability
+    if (season == "Winter") {
+      cat("WINTER EMERGENCY: ")
+      if (prob > 0.8) {
+        cat("SCHOOL CLOSURES + INDUSTRY SHUTDOWN")
+      } else {
+        cat("TRAFFIC RESTRICTIONS + INDUSTRY CURBS")
+      }
+    } 
+    else if (season == "Summer") {
+      cat("SUMMER SMOG PROTOCOL: CONSTRUCTION LIMITS + OZONE ALERTS")
+    }
+    else {
+      cat("SEASONAL INDUSTRIAL CURBS + PUBLIC TRANSPORT BOOST")
+    }
+  } 
+  else if (prob > 0.5) {
+    cat("TARGETED INDUSTRY CONTROLS")
+  }
+  else if (prob > 0.3) {
+    if (season == "Spring") {
+      cat("POLLEN-POLLUTION COMBO WARNINGS")
+    } else {
+      cat("VOLUNTARY REDUCTIONS ADVISED")
+    }
+  }
+  else {
+    cat("ROUTINE MONITORING")
+  }
+}
+
+# Overall decision rule 
+cat("\n\n=== OVERALL DECISION ===\n")
+if (prob_exceedance > 0.7) {
+  cat("EMERGENCY MEASURES ACTIVATED: >70% chance of exceedance\n")
+} else if (prob_exceedance > 0.5) {
+  cat("INDUSTRIAL CURBS: 50-70% chance of exceedance\n")
+} else if (prob_exceedance > 0.3) {
+  cat("PUBLIC ADVISORIES: 30-50% chance of exceedance\n")
+} else if (prob_exceedance > 0.1) {
+  cat("MONITOR CLOSELY: 10-30% chance of exceedance\n")
+} else {
+  cat("NO ACTION REQUIRED: <10% chance of exceedance\n")
+}
+```
+
+Winter (54.9%) → Winter has stricter controls (traffic limits, industry shutdowns if severe).
+
+Spring (23.9%) → ]Spring has pollen-pollution warnings
+
+Summer (47.8%) → Summer has smog protocols like ozone alerts, construction limits are triggered.
+
+Fall (26.4%) → Fall has routine monitoring.
+
+This helps authorities prioritize pollution control efforts based on seasonal variations
+
+Overall Exceedance (\~38.3%) → Public Advisories Issued
+
+```{r}
+# Define seasonal cost parameters (can be adjusted)
+seasonal_costs <- list(
+  Winter = list(C_F = 60, C_M = 800),  # Higher costs due to health vulnerability
+  Spring = list(C_F = 50, C_M = 500),
+  Summer = list(C_F = 55, C_M = 600),  # Ozone interactions increase costs
+  Fall = list(C_F = 50, C_M = 550)
+)
+
+# Air quality threshold
+T <- 25
+
+cat("=== SEASONAL BAYESIAN DECISION ANALYSIS ===\n")
+
+for (season in c("Winter", "Spring", "Summer", "Fall")) {
+  # Get seasonal predictions
+  seasonal_preds <- future_predictions[future_season == which(c("Winter", "Spring", "Summer", "Fall") == season)]
+  
+  # Compute seasonal exceedance probability
+  prob_exceed <- mean(seasonal_preds > T)
+  
+  # Get season-specific costs
+  C_F <- seasonal_costs[[season]]$C_F
+  C_M <- seasonal_costs[[season]]$C_M
+  decision_threshold <- C_F / C_M
+  
+  cat(sprintf("\n%s Analysis (%.1f%% exceedance):\n", season, prob_exceed*100))
+  cat(sprintf("False Alarm Cost (C_F): %d\n", C_F))
+  cat(sprintf("Miss Cost (C_M): %d\n", C_M))
+  cat(sprintf("Decision Threshold: %.3f\n", decision_threshold))
+  
+  # Enhanced decision rule
+  if (prob_exceed > decision_threshold + 0.15) {
+    cat("ACTION: ACTIVATE STRONG INTERVENTIONS\n")
+  } else if (prob_exceed > decision_threshold) {
+    cat("ACTION: IMPLEMENT TARGETED MEASURES\n")
+  } else if (prob_exceed > decision_threshold/2) {
+    cat("ADVISORY: ISSUE PUBLIC HEALTH NOTICE\n")
+  } else {
+    cat("MONITOR: NO ACTION REQUIRED\n")
+  }
+}
+
+# Overall decision with weighted average costs
+cat("\n=== OVERALL DECISION ===\n")
+overall_C_F <- mean(sapply(seasonal_costs, function(x) x$C_F))
+overall_C_M <- mean(sapply(seasonal_costs, function(x) x$C_M))
+overall_threshold <- overall_C_F / overall_C_M
+
+if (prob_exceedance > overall_threshold + 0.1) {
+  cat("REGIONAL CRISIS: COORDINATED EMERGENCY RESPONSE\n")
+} else if (prob_exceedance > overall_threshold) {
+  cat("REGIONAL ALERT: COORDINATED PREVENTATIVE MEASURES\n")
+} else {
+  cat("REGIONAL STATUS: NORMAL OPERATIONS\n")
+}
+
+cat(sprintf("\nOverall Exceedance Probability: %.2f%%", prob_exceedance*100))
+cat(sprintf("\nOverall Decision Threshold: %.3f", overall_threshold))
+```
+
+The model evaluates the probability of air quality exceeding a set threshold (T = 25) for each season and applies a Bayesian decision rule.
+
+-   For Winter Analysis (54.9% exceedance probability) Decision Threshold: 60/800=0.075 Decision: Since the exceedance probability (54.9%) is much higher than the threshold (7.5%), strong interventions are activated
+
+-   For Spring Analysis (23.9% exceedance probability) Decision Threshold: 50/500=0.1 Decision: Since the exceedance probability (23.9%) is above the threshold (10%), targeted measures are implemented.
+
+-   For Summer Analysis (47.8% exceedance probability) Decision Threshold: 55/600=0.092 Decision: Since the exceedance probability (47.8%) is much higher than the threshold (9.2%), strong interventions are activated.
+
+-   For Fall Analysis (26.4% exceedance probability) Decision Threshold: 50/550=0.091 Decision: Since the exceedance probability (26.4%) is much higher than the threshold (9.1%), strong interventions are activated.
+
+-   The overall False Alarm Cost (C_F) and Miss Cost (C_M) are averaged across seasons: Overall Decision Threshold = 53.75/612.5=0.088 Since the exceedance probability (38.25%) is higher than the overall decision threshold (0.088), the system issues a "Regional Crisis: Coordinated Emergency Response".
+
+Winter and Summer require stronger interventions due to high exceedance probabilities.
+
+Spring and Fall require targeted measures, but still demand attention.
+
+The overall exceedance probability (38.25%) is concerning, triggering a regional emergency response.
+
+Decision thresholds are computed dynamically based on season-specific cost ratios.
+

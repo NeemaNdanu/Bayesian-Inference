@@ -1,0 +1,246 @@
+---
+title: "BAYESIAN INFERENCE"
+author: "NEEMA NDANU"
+date: "2025-01-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##  QUESTION 1
+
+Marjorie is worried about whether it is safe to visit a vulnerable relative during a pandemic. She is 
+considering whether to take an at-home test for the virus before visiting her relative. Assume the test 
+has sensitivity 85% and specificity 92%. That is, the probability that the test will be positive is about 
+85% if an individual is infected with the virus, and the probability that test will be negative is about 
+92% if an individual is not infected. 
+
+### a. Assume that about 2 in every 1,000 persons in the population is currently infected. What is the posterior probability that an individual with a positive test has the disease?
+
+```{r}
+# Define parameters
+sensitivity <- 0.85            
+specificity <- 0.92            
+prevalence_1 <- 2 / 1000         
+
+# Compute probabilities
+P_D1_given_T1 <- sensitivity     
+P_D0_given_T1 <- 1 - specificity 
+P_D0_given_T0 <- specificity     
+P_D1_given_T0 <- 1 - sensitivity 
+P_D1 <- prevalence_1             
+P_D0 <- 1 - prevalence_1         
+
+# Total probability of a positive test
+P_T1 <- (P_D1_given_T1 * P_D1) + (P_D0_given_T1 * P_D0)  
+
+# Posterior probability: P(D = 1 | T = 1)
+P_infected_given_positive <- (P_D1_given_T1 * P_D1) / P_T1
+
+# Print the result
+cat("The posterior probability that an individual with a positive test has the disease (prevalence = 2 in 1,000) is:", 
+    round(P_infected_given_positive, 4), "\n")
+
+```
+This value reflects the likelihood of being infected given a positive test result. The low prevalence contributed largely to the low posterior probability.
+
+### Suppose case counts have decreased substantially to about 15 in 100,000. What is the posterior probability that an individual with a positive test has the disease? 
+
+```{r}
+# Define parameters
+prevalence_2 <- 15 / 100000      
+P_D1_1 <- prevalence_2           
+P_D0_1 <- 1 - prevalence_2       
+
+# Total probability of a positive test
+P_T1_1 <- (P_D1_given_T1 * P_D1_1) + (P_D0_given_T1 * P_D0_1)
+
+# Posterior probability: P(D = 1 | T = 1)
+P_infected_given_positive_1 <- (P_D1_given_T1 * P_D1_1) / P_T1_1
+
+# Print the result
+cat("The posterior probability that an individual with a positive test has the disease (prevalence = 15 in 100,000) is:", 
+    round(P_infected_given_positive_1, 4), "\n")
+
+```
+This value reflects the likelihood of being infected given a positive test result. The low prevalence contributed largely to the low posterior probability.
+
+As the prevalence drops, the posterior probability becomes even smaller because false positives increasingly dominate. This highlights the impact of disease prevalence on test reliability.
+
+### Comment on your results.
+
+As the prevalence drops, the posterior probability becomes even smaller because false positives increasingly dominate. This highlights the impact of disease prevalence on test reliability.At a prevalence of 2 in 1,000, there is still a moderately higher chance of infection (posterior probability of 0.0208) compared to 15 in 100,000 (posterior probability of 0.0016). 
+
+
+## QUESTION 2
+Assume the following losses for Marjorie:
+• Visit relative, not infected loss = 0
+• Visit relative, infected loss = 100
+• Do not visit relative, not infected loss = 1
+• Do not visit relative, infected loss = 5
+
+Suppose Marjorie is deciding whether to visit her relative and if so whether to test for the disease 
+before visiting. 
+
+### If the prior probability that Marjorie has the disease is 200 in 100,000, find the policy that minimizes expected loss. That is, given each of the possible test results, should Marjorie visit her relative?
+
+```{r}
+# Update prevalence
+prevalence_3 <- 200 / 100000     
+P_D1 <- prevalence_3             
+P_D0 <- 1 - prevalence_3         
+
+# Compute posterior probabilities for positive and negative tests
+P_T1 <- (P_D1_given_T1 * P_D1) + (P_D0_given_T1 * P_D0)
+P_infected_given_positive <- (P_D1_given_T1 * P_D1) / P_T1
+P_not_infected_given_positive <- (P_D0_given_T1 * P_D0) / P_T1
+
+P_T0 <- (P_D1_given_T0 * P_D1) + (P_D0_given_T0 * P_D0)
+P_infected_given_negative <- (P_D1_given_T0 * P_D1) / P_T0
+P_not_infected_given_negative <- (P_D0_given_T0 * P_D0) / P_T0
+
+# Define losses
+Visit_D0_loss <- 0              
+Visit_D1_loss <- 100           
+No_Visit_D0_loss <- 1           
+No_Visit_D1_loss <- 5           
+
+### Without Testing
+Loss_Visit_No_Test <- (P_D0 * Visit_D0_loss) + (P_D1 * Visit_D1_loss)
+Loss_No_Visit_No_Test <- (P_D0 * No_Visit_D0_loss) + (P_D1 * No_Visit_D1_loss)
+
+# Print results for no testing
+cat("\nExpected loss without testing:")
+cat("\n- Visit relative:", Loss_Visit_No_Test)
+cat("\n- Do not visit relative:", Loss_No_Visit_No_Test, "\n")
+
+### With Testing
+Loss_Visit_Positive <- (P_infected_given_positive * Visit_D1_loss) + (P_not_infected_given_positive * Visit_D0_loss)
+Loss_No_Visit_Positive <- (P_infected_given_positive * No_Visit_D1_loss) + (P_not_infected_given_positive * No_Visit_D0_loss)
+
+Loss_Visit_Negative <- (P_not_infected_given_negative * Visit_D0_loss) + (P_infected_given_negative * Visit_D1_loss)
+Loss_No_Visit_Negative <- (P_not_infected_given_negative * No_Visit_D0_loss) + (P_infected_given_negative * No_Visit_D1_loss)
+
+# Print results for testing
+cat("\nExpected loss with testing:")
+cat("\n- Visit relative, positive test:", Loss_Visit_Positive)
+cat("\n- Do not visit relative, positive test:", Loss_No_Visit_Positive)
+cat("\n- Visit relative, negative test:", Loss_Visit_Negative)
+cat("\n- Do not visit relative, negative test:", Loss_No_Visit_Negative, "\n")
+```
+Without testing, the decision to visit results in a lower expected loss because the probability of infection is low , and the loss associated with visiting while infected is offset by the small probability of infection.
+
+Testing provides additional information, allowing Marjorie to reduce her expected loss by acting based on the test result. For instance:
+    - A negative test result suggests it is safer to visit, leading to a minimal expected loss (0.0327).
+
+    - A positive test result suggests not visiting, which still results in a significant expected loss due to the possibility of false positives.
+
+### Find the EVSI for 200 in 100,000
+```{r}
+# Conditional Expected Losses
+EL_no_test <- min(Loss_Visit_No_Test , Loss_No_Visit_No_Test)
+EL_with_positive <- min(Loss_Visit_Positive, Loss_No_Visit_Positive)
+EL_with_negative <- min(Loss_Visit_Negative, Loss_No_Visit_Negative)
+
+# Expected Loss With Testing
+EL_with_test <- (P_T1 * EL_with_positive) + (P_T0 * EL_with_negative)
+
+# Expected Value of Sample Information (EVSI)
+EVSI <- EL_no_test - EL_with_test
+
+# Output
+cat("Expected Loss Without Testing:", EL_no_test, "\n")
+cat("Expected Loss With Testing:", EL_with_test, "\n")
+cat("Expected Value of Sample Information (EVSI):", EVSI, "\n")
+```
+The EVSI quantifies the value of testing. In this scenario, testing reduces expected loss from 0.2 (without testing) to 0.1183 (with testing), yielding an EVSI of 0.0817.
+
+### Repeat for a prior probability of 15 in 100,000. Discuss.
+```{r}
+# Update prevalence for 15 in 100,000
+prevalence_15 <- 15 / 100000     
+P_D1 <- prevalence_15           
+P_D0 <- 1 - prevalence_15       
+
+# Compute posterior probabilities for positive and negative tests
+P_T1 <- (P_D1_given_T1 * P_D1) + (P_D0_given_T1 * P_D0)
+P_infected_given_positive <- (P_D1_given_T1 * P_D1) / P_T1
+P_not_infected_given_positive <- (P_D0_given_T1 * P_D0) / P_T1
+
+P_T0 <- (P_D1_given_T0 * P_D1) + (P_D0_given_T0 * P_D0)
+P_infected_given_negative <- (P_D1_given_T0 * P_D1) / P_T0
+P_not_infected_given_negative <- (P_D0_given_T0 * P_D0) / P_T0
+
+# Define losses
+Visit_D0_loss <- 0              
+Visit_D1_loss <- 100           
+No_Visit_D0_loss <- 1           
+No_Visit_D1_loss <- 5           
+
+### Without Testing
+Loss_Visit_No_Test <- (P_D0 * Visit_D0_loss) + (P_D1 * Visit_D1_loss)
+Loss_No_Visit_No_Test <- (P_D0 * No_Visit_D0_loss) + (P_D1 * No_Visit_D1_loss)
+
+# Print results for no testing
+cat("\nExpected loss without testing (15 in 100,000):")
+cat("\n- Visit relative:", Loss_Visit_No_Test)
+cat("\n- Do not visit relative:", Loss_No_Visit_No_Test, "\n")
+
+### With Testing
+Loss_Visit_Positive <- (P_infected_given_positive * Visit_D1_loss) + (P_not_infected_given_positive * Visit_D0_loss)
+Loss_No_Visit_Positive <- (P_infected_given_positive * No_Visit_D1_loss) + (P_not_infected_given_positive * No_Visit_D0_loss)
+
+Loss_Visit_Negative <- (P_not_infected_given_negative * Visit_D0_loss) + (P_infected_given_negative * Visit_D1_loss)
+Loss_No_Visit_Negative <- (P_not_infected_given_negative * No_Visit_D0_loss) + (P_infected_given_negative * No_Visit_D1_loss)
+
+# Print results for testing
+cat("\nExpected loss with testing (15 in 100,000):")
+cat("\n- Visit relative, positive test:", Loss_Visit_Positive)
+cat("\n- Do not visit relative, positive test:", Loss_No_Visit_Positive)
+cat("\n- Visit relative, negative test:", Loss_Visit_Negative)
+cat("\n- Do not visit relative, negative test:", Loss_No_Visit_Negative, "\n")
+
+# Conditional Expected Losses
+EL_no_test <- min(Loss_Visit_No_Test, Loss_No_Visit_No_Test)
+EL_with_positive <- min(Loss_Visit_Positive, Loss_No_Visit_Positive)
+EL_with_negative <- min(Loss_Visit_Negative, Loss_No_Visit_Negative)
+
+```
+Similar to the case when the infection prevalence is 200 in 100,000, without testing, the decision to visit results in a lower expected loss. This is because the probability of infection is extremely low, and the loss associated with visiting while infected is offset by the small probability of infection.
+
+With testing which provides an even better decision we conclude the following :-
+    - Negative test: Visiting has a very low expected loss (0.0024), confirming it's safe.
+
+    - Positive test: Visiting has a higher loss (0.159), reflecting the increased risk, while not visiting avoids that risk.
+
+Based on the analysis, the best decision is to visit the relative if the test result is negative, as it results in the lowest expected loss (0.0024).
+    
+### Find the EVSI for 15 in 100,000
+```{r}
+# Conditional Expected Losses
+EL_no_test <- min(Loss_Visit_No_Test, Loss_No_Visit_No_Test)
+EL_with_positive <- min(Loss_Visit_Positive, Loss_No_Visit_Positive)
+EL_with_negative <- min(Loss_Visit_Negative, Loss_No_Visit_Negative)
+
+# Expected Loss With Testing
+EL_with_test <- (P_T1 * EL_with_positive) + (P_T0 * EL_with_negative)
+
+# Expected Value of Sample Information (EVSI)
+EVSI <- EL_no_test - EL_with_test
+
+# Output results
+cat("\nExpected Loss Without Testing (15 in 100,000):", EL_no_test, "\n")
+cat("Expected Loss With Testing (15 in 100,000):", EL_with_test, "\n")
+cat("Expected Value of Sample Information (EVSI, 15 in 100,000):", EVSI, "\n")
+```
+At a very low prevalence (15 in 100,000), the expected losses with and without testing are identical. Testing provides little additional value in this setting because the disease's rarity makes the probability of infection so small that the decision (visit or not visit) is almost unaffected by the test result.
+
+## QUESTION 3
+
+### For the decision of whether Marjorie should visit her relative, find the range of prior probabilities for which taking the at-home test results in lower expected loss than ignoring or not taking the test (assuming the test is free).Discuss your results
+
+Testing provides value when the EVSI > 0, which happens when the prior probability is high enough to make the test results informative.
+For very low prior probabilities (like 15 in 100,000), the test offers no significant additional information.
+For moderate to higher prior probabilities (like 200 in 100,000), testing reduces expected loss by refining the decision.
