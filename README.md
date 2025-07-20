@@ -24,11 +24,17 @@ This repository contains coursework and exercises from my Bayesian Inference cla
 ## Repository Structure
 Bayesian-Inference/
 │
+
 ├── Assignments/ # Individual assignment submissions
+
 ├── Quizzes/ # In-class quizzes
+
 ├── GroupWork/ # Group exercises and collaborative tasks
+
 ├── MidSemesterExam/ # Mid-semester examination scripts
+
 ├── EndSemesterExam/ # Final exam material
+
 └── README.md # Project overview
 
 
